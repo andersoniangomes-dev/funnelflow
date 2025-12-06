@@ -4,8 +4,13 @@ import { KPICard } from "@/components/dashboard/KPICard";
 import { SessionsChart } from "@/components/dashboard/SessionsChart";
 import { TrafficSourcesChart } from "@/components/dashboard/TrafficSourcesChart";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { useApi } from "@/hooks/useApi";
 
-const kpis = [
+// Fallback data
+const fallbackKPIs = [
   { title: "Sessões", value: "42.580", change: 12.5, changeLabel: "vs período anterior", icon: Eye },
   { title: "Usuários", value: "28.392", change: 8.2, changeLabel: "vs período anterior", icon: Users },
   { title: "Conversões", value: "1.847", change: 23.1, changeLabel: "vs período anterior", icon: Target },
@@ -13,6 +18,63 @@ const kpis = [
 ];
 
 const Index = () => {
+  const [kpis, setKpis] = useState(fallbackKPIs);
+  const [isLoading, setIsLoading] = useState(true);
+  const [startDate, setStartDate] = useState("30daysAgo");
+  const [endDate, setEndDate] = useState("today");
+
+  useApi();
+
+  useEffect(() => {
+    fetchKPIs();
+  }, [startDate, endDate]);
+
+  const fetchKPIs = async () => {
+    setIsLoading(true);
+    try {
+      const data = await api.getKPIs(startDate, endDate);
+      
+      // Map API response to KPI format
+      setKpis([
+        { 
+          title: "Sessões", 
+          value: data.sessions.value, 
+          change: data.sessions.change, 
+          changeLabel: data.sessions.changeLabel, 
+          icon: Eye 
+        },
+        { 
+          title: "Usuários", 
+          value: data.users.value, 
+          change: data.users.change, 
+          changeLabel: data.users.changeLabel, 
+          icon: Users 
+        },
+        { 
+          title: "Conversões", 
+          value: data.conversions.value, 
+          change: data.conversions.change, 
+          changeLabel: data.conversions.changeLabel, 
+          icon: Target 
+        },
+        { 
+          title: "Taxa de Conversão", 
+          value: data.conversionRate.value, 
+          change: data.conversionRate.change, 
+          changeLabel: data.conversionRate.changeLabel, 
+          icon: TrendingUp 
+        },
+      ]);
+    } catch (error) {
+      console.error("Erro ao buscar KPIs:", error);
+      // Keep fallback data on error
+      setKpis(fallbackKPIs);
+      toast.error("Não foi possível carregar dados do GA4. Usando dados de exemplo.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">

@@ -9,8 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { useApi } from "@/hooks/useApi";
 
-const funnelSteps = [
+const defaultFunnelSteps = [
   { name: "page_view", users: 42580, dropoff: 0, rate: 100 },
   { name: "click_cta", users: 18420, dropoff: 56.7, rate: 43.3 },
   { name: "view_checkout", users: 8540, dropoff: 53.6, rate: 20.1 },
@@ -18,6 +22,46 @@ const funnelSteps = [
 ];
 
 const Funnels = () => {
+  const [funnelSteps, setFunnelSteps] = useState(defaultFunnelSteps);
+  const [isLoading, setIsLoading] = useState(true);
+  const [funnelSummary, setFunnelSummary] = useState({
+    totalConversionRate: "4,3%",
+    totalDropoffs: "40.733",
+    totalRevenue: "R$ 274.806"
+  });
+
+  useApi();
+
+  useEffect(() => {
+    fetchFunnel();
+  }, []);
+
+  const fetchFunnel = async () => {
+    setIsLoading(true);
+    try {
+      // Default funnel steps
+      const steps = "page_view,click_cta,view_checkout,purchase";
+      const response = await api.getFunnel(steps);
+      
+      if (response.steps && response.steps.length > 0) {
+        setFunnelSteps(response.steps);
+        if (response.summary) {
+          setFunnelSummary({
+            totalConversionRate: response.summary.totalConversionRate || "0%",
+            totalDropoffs: response.summary.totalDropoffs || "0",
+            totalRevenue: response.summary.totalRevenue || "R$ 0"
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao buscar funil:", error);
+      toast.error("Não foi possível carregar dados do funil do GA4.");
+      // Keep default data on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -129,15 +173,15 @@ const Funnels = () => {
           <div className="mt-8 pt-6 border-t border-border">
             <div className="grid grid-cols-3 gap-6">
               <div className="text-center">
-                <p className="text-3xl font-bold gradient-text">4,3%</p>
+                <p className="text-3xl font-bold gradient-text">{funnelSummary.totalConversionRate}</p>
                 <p className="text-sm text-muted-foreground mt-1">Taxa de Conversão Total</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold text-foreground">40.733</p>
+                <p className="text-3xl font-bold text-foreground">{funnelSummary.totalDropoffs}</p>
                 <p className="text-sm text-muted-foreground mt-1">Total de Abandonos</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold text-success">R$ 274.806</p>
+                <p className="text-3xl font-bold text-success">{funnelSummary.totalRevenue}</p>
                 <p className="text-sm text-muted-foreground mt-1">Receita Gerada</p>
               </div>
             </div>

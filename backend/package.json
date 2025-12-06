@@ -1,0 +1,29 @@
+{
+  "name": "funnelflow-backend",
+  "version": "1.0.0",
+  "description": "Backend API for FunnelFlow - Google Analytics 4 Integration",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch index.js",
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "analytics",
+    "ga4",
+    "api"
+  ],
+  "author": "andersoniangomes-dev",
+  "license": "MIT",
+  "dependencies": {
+    "@google-analytics/data": "^4.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
+

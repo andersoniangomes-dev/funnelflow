@@ -1,8 +1,12 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { useApi } from "@/hooks/useApi";
 
-const sourceData = [
+const defaultSourceData = [
   { source: "Google", sessions: 18420, conversions: 892, revenue: 128450 },
   { source: "Instagram", sessions: 12840, conversions: 456, revenue: 67230 },
   { source: "Facebook", sessions: 8920, conversions: 312, revenue: 45890 },
@@ -11,7 +15,7 @@ const sourceData = [
   { source: "LinkedIn", sessions: 1890, conversions: 45, revenue: 12340 },
 ];
 
-const campaignData = [
+const defaultCampaignData = [
   { name: "Black Friday 2024", sessions: 15420, conversions: 723, ctr: "4,7%", roas: 5.2 },
   { name: "Promoção de Verão", sessions: 8920, conversions: 312, ctr: "3,5%", roas: 3.8 },
   { name: "Lançamento Produto", sessions: 6540, conversions: 245, ctr: "3,7%", roas: 4.1 },
@@ -28,6 +32,52 @@ const platformColors = [
 ];
 
 const TrafficSources = () => {
+  const [sourceData, setSourceData] = useState(defaultSourceData);
+  const [campaignData, setCampaignData] = useState(defaultCampaignData);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useApi();
+
+  useEffect(() => {
+    fetchTrafficData();
+  }, []);
+
+  const fetchTrafficData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch sources
+      const sourcesResponse = await api.getTrafficSources();
+      if (sourcesResponse.sources && sourcesResponse.sources.length > 0) {
+        const formattedSources = sourcesResponse.sources.map((s: any) => ({
+          source: s.source || "unknown",
+          sessions: s.sessions || 0,
+          conversions: s.conversions || 0,
+          revenue: s.revenue || 0
+        }));
+        setSourceData(formattedSources);
+      }
+
+      // Fetch campaigns
+      const campaignsResponse = await api.getCampaigns();
+      if (campaignsResponse.campaigns && campaignsResponse.campaigns.length > 0) {
+        const formattedCampaigns = campaignsResponse.campaigns.map((c: any) => ({
+          name: c.name || "unknown",
+          sessions: c.sessions || 0,
+          conversions: c.conversions || 0,
+          ctr: c.conversionRate || "0%",
+          roas: c.revenue > 0 && c.sessions > 0 ? (c.revenue / (c.sessions * 10)).toFixed(1) : "0"
+        }));
+        setCampaignData(formattedCampaigns);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar fontes de tráfego:", error);
+      toast.error("Não foi possível carregar dados de tráfego do GA4.");
+      // Keep default data on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">

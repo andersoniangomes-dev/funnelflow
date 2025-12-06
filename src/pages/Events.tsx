@@ -10,26 +10,49 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useState } from "react";
-
-const eventsData = [
-  { name: "page_view", count: 156420, users: 42580, status: "ativo" },
-  { name: "click_cta", count: 48320, users: 18420, status: "ativo" },
-  { name: "scroll_depth_50", count: 89450, users: 31240, status: "ativo" },
-  { name: "scroll_depth_90", count: 45230, users: 21890, status: "ativo" },
-  { name: "view_checkout", count: 12840, users: 8540, status: "ativo" },
-  { name: "add_to_cart", count: 9870, users: 6230, status: "ativo" },
-  { name: "begin_checkout", count: 4560, users: 3120, status: "ativo" },
-  { name: "purchase", count: 2340, users: 1847, status: "ativo" },
-  { name: "signup", count: 3450, users: 3450, status: "ativo" },
-  { name: "login", count: 28340, users: 12450, status: "ativo" },
-  { name: "video_start", count: 18920, users: 15670, status: "ativo" },
-  { name: "video_complete", count: 4230, users: 3890, status: "alerta" },
-  { name: "form_submit", count: 1240, users: 980, status: "erro" },
-];
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { useApi } from "@/hooks/useApi";
 
 const Events = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [eventsData, setEventsData] = useState<Array<{
+    name: string;
+    count: number;
+    users: number;
+    status: string;
+  }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useApi();
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.getEvents();
+      const events = response.events.map((event: any) => ({
+        name: event.name,
+        count: event.count,
+        users: event.users,
+        status: event.status || "ativo"
+      }));
+      setEventsData(events);
+    } catch (error) {
+      console.error("Erro ao buscar eventos:", error);
+      toast.error("Não foi possível carregar eventos do GA4.");
+      // Fallback data
+      setEventsData([
+        { name: "page_view", count: 0, users: 0, status: "erro" },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredEvents = eventsData.filter(event =>
     event.name.toLowerCase().includes(searchQuery.toLowerCase())
