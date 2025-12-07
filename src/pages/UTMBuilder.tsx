@@ -982,7 +982,7 @@ const UTMBuilder = () => {
                   </div>
                 ) : (
                   <>
-                  {                  {filteredUTMs.map((utm) => {
+                  {filteredUTMs.map((utm) => {
                     if (!utm || !utm.id) return null;
                     
                     const utmIdString = String(utm.id);
