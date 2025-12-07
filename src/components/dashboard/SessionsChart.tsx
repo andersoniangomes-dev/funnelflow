@@ -16,14 +16,25 @@ export function SessionsChart() {
   const fetchSessionsData = async () => {
     setIsLoading(true);
     try {
+      console.log("📊 Buscando dados de sessões ao longo do tempo...");
       const response = await api.getSessionsOverTime('30daysAgo', 'today');
-      if (response.data && response.data.length > 0) {
-        setData(response.data);
+      console.log("📥 Resposta recebida:", response);
+      
+      if (response && response.data && Array.isArray(response.data)) {
+        console.log(`✅ ${response.data.length} pontos de dados recebidos`);
+        if (response.data.length > 0) {
+          console.log("📈 Primeiros dados:", response.data.slice(0, 3));
+          setData(response.data);
+        } else {
+          console.warn("⚠️ Array de dados está vazio");
+          setData([]);
+        }
       } else {
+        console.warn("⚠️ Resposta inválida ou sem dados:", response);
         setData([]);
       }
     } catch (error) {
-      console.error("Erro ao buscar dados de sessões:", error);
+      console.error("❌ Erro ao buscar dados de sessões:", error);
       setData([]);
     } finally {
       setIsLoading(false);
