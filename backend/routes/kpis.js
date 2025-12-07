@@ -48,8 +48,42 @@ router.get('/', async (req, res) => {
     // Extract metrics
     const users = parseInt(metrics[0]?.value || '0');
     const sessions = parseInt(metrics[1]?.value || '0');
-    const conversions = parseInt(metrics[2]?.value || '0');
+    let conversions = parseInt(metrics[2]?.value || '0');
     const totalUsers = parseInt(metrics[3]?.value || '0');
+
+    // Add begin_checkout events as conversions
+    try {
+      const [beginCheckoutResponse] = await analyticsDataClient.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [
+          {
+            startDate: startDate,
+            endDate: endDate,
+          },
+        ],
+        dimensions: [{ name: 'eventName' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'eventName',
+            stringFilter: {
+              matchType: 'EXACT',
+              value: 'begin_checkout',
+            },
+          },
+        },
+      });
+
+      const beginCheckoutCount = beginCheckoutResponse.rows?.reduce((sum, row) => {
+        return sum + parseInt(row.metricValues?.[0]?.value || '0');
+      }, 0) || 0;
+
+      conversions += beginCheckoutCount;
+      console.log(`✅ Adicionados ${beginCheckoutCount} eventos begin_checkout como conversões`);
+    } catch (error) {
+      console.warn('⚠️ Erro ao buscar eventos begin_checkout:', error.message);
+      // Continue with original conversions count
+    }
 
     // Calculate conversion rate
     const conversionRate = sessions > 0 
@@ -77,8 +111,42 @@ router.get('/', async (req, res) => {
     const previousRows = previousResponse.rows || [];
     const previousMetrics = previousRows[0]?.metricValues || [];
     const previousSessions = parseInt(previousMetrics[0]?.value || '0');
-    const previousConversions = parseInt(previousMetrics[1]?.value || '0');
+    let previousConversions = parseInt(previousMetrics[1]?.value || '0');
     const previousUsers = parseInt(previousMetrics[2]?.value || '0');
+
+    // Add begin_checkout events as conversions for previous period
+    try {
+      const [previousBeginCheckoutResponse] = await analyticsDataClient.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [
+          {
+            startDate: previousStartDate.start,
+            endDate: previousStartDate.end,
+          },
+        ],
+        dimensions: [{ name: 'eventName' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'eventName',
+            stringFilter: {
+              matchType: 'EXACT',
+              value: 'begin_checkout',
+            },
+          },
+        },
+      });
+
+      const previousBeginCheckoutCount = previousBeginCheckoutResponse.rows?.reduce((sum, row) => {
+        return sum + parseInt(row.metricValues?.[0]?.value || '0');
+      }, 0) || 0;
+
+      previousConversions += previousBeginCheckoutCount;
+      console.log(`✅ Adicionados ${previousBeginCheckoutCount} eventos begin_checkout do período anterior como conversões`);
+    } catch (error) {
+      console.warn('⚠️ Erro ao buscar eventos begin_checkout do período anterior:', error.message);
+      // Continue with original conversions count
+    }
 
     // Calculate changes
     const sessionsChange = previousSessions > 0
