@@ -104,7 +104,12 @@ const TrafficSources = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Fontes de Tráfego</h1>
-            <p className="text-sm sm:text-base text-muted-foreground mt-1">Analise sua aquisição de tráfego e desempenho de campanhas</p>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
+              Analise sua aquisição de tráfego e desempenho de campanhas de acordo com "Fonte * (utm_source)"
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Dados baseados nas UTMs criadas e no Google Analytics 4
+            </p>
           </div>
           <DateRangePicker 
             onDateChange={(start, end) => {
@@ -249,8 +254,13 @@ const TrafficSources = () => {
         </div>
 
         {/* Campaign Performance */}
-        <div className="glass-card p-6 animate-fade-in">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Desempenho de Campanhas</h3>
+        <div className="glass-card p-4 sm:p-6 animate-fade-in">
+          <div className="mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">Desempenho de Campanhas (utm_campaign)</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Campanhas baseadas nos parâmetros utm_campaign das UTMs. Inclui begin_checkout como conversão.
+            </p>
+          </div>
           {isLoading ? (
             <div className="text-center py-8">
               <p className="text-sm text-muted-foreground">Carregando dados...</p>
