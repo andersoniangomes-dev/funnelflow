@@ -71,6 +71,7 @@ router.post('/', async (req, res) => {
         res.json({ success: true, id: parseInt(id) });
       } else {
         // Create new
+        console.log(`💾 Criando novo UTM no banco: ${name}`);
         const result = await sql`
           INSERT INTO saved_utms (name, url, tracking_url, short_url, source, medium, campaign, content, term)
           VALUES (${name}, ${url}, ${trackingUrl || null}, ${shortUrl || null}, ${source}, ${medium}, ${campaign}, ${content || null}, ${term || null})
@@ -78,6 +79,7 @@ router.post('/', async (req, res) => {
         `;
         
         const newId = result[0].id.toString();
+        console.log(`✅ UTM criado no banco com ID: ${newId} (tipo: ${typeof newId})`);
         
         // If tracking URL was not provided, generate it with the database ID
         if (!trackingUrl) {
@@ -87,13 +89,16 @@ router.post('/', async (req, res) => {
           const apiBaseUrl = `${protocol}://${host}`;
           const finalTrackingUrl = `${apiBaseUrl}/utm/track/${newId}?url=${encodeURIComponent(url)}`;
           
+          console.log(`🔗 Gerando tracking URL: ${finalTrackingUrl}`);
           await sql`
             UPDATE saved_utms
             SET tracking_url = ${finalTrackingUrl}
             WHERE id = ${parseInt(newId)}
           `;
+          console.log(`✅ Tracking URL salva no banco`);
         }
         
+        console.log(`📤 Retornando resposta: { success: true, id: "${newId}" }`);
         res.json({ success: true, id: newId });
       }
     } else {
