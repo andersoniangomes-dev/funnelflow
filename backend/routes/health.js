@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
     }
 
     // Test connection to GA4 (but don't fail health check if it fails)
-    const analyticsDataClient = getAnalyticsClient();
+    const analyticsDataClient = await getAnalyticsClient();
     
     if (analyticsDataClient) {
       try {

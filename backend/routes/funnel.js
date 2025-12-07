@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
       steps = 'page_view,click_cta,view_checkout,purchase'
     } = req.query;
 
-    const analyticsDataClient = getAnalyticsClient();
+    const analyticsDataClient = await getAnalyticsClient();
     
     if (!propertyId || !analyticsDataClient) {
       return res.status(503).json({

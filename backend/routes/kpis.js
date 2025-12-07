@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
       });
     }
 
-    const analyticsDataClient = getAnalyticsClient();
+    const analyticsDataClient = await getAnalyticsClient();
     
     if (!analyticsDataClient) {
       return res.status(503).json({

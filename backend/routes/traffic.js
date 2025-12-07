@@ -11,7 +11,7 @@ router.get('/sources', async (req, res) => {
     const propertyId = getPropertyId();
     const { startDate = '30daysAgo', endDate = 'today' } = req.query;
 
-    const analyticsDataClient = getAnalyticsClient();
+    const analyticsDataClient = await getAnalyticsClient();
     
     if (!propertyId || !analyticsDataClient) {
       return res.status(503).json({
@@ -88,7 +88,7 @@ router.get('/campaigns', async (req, res) => {
     const propertyId = getPropertyId();
     const { startDate = '30daysAgo', endDate = 'today' } = req.query;
 
-    const analyticsDataClient = getAnalyticsClient();
+    const analyticsDataClient = await getAnalyticsClient();
     
     if (!propertyId || !analyticsDataClient) {
       return res.status(503).json({
