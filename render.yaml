@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: funnelflow-backend
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Adicione suas variáveis de ambiente aqui ou via dashboard do Render
+      # - key: DATABASE_URL
+      #   sync: false  # Configure manualmente no dashboard
+      # - key: GA4_PROPERTY_ID
+      #   sync: false
+      # - key: GOOGLE_APPLICATION_CREDENTIALS
+      #   sync: false
+
