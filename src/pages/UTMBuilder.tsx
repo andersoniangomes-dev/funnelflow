@@ -253,22 +253,29 @@ const UTMBuilder = () => {
           }
         });
         
-        // Check for stats without corresponding UTMs
+        // Check for stats without corresponding UTMs - these are "orphan" clicks
+        const orphanStats: string[] = [];
         Object.keys(statsMap).forEach((statUtmId) => {
           const foundUtm = savedUTMs.find((utm: any) => String(utm.id) === statUtmId);
           if (!foundUtm) {
-            console.log(`⚠️ Estatísticas encontradas para UTM ${statUtmId}, mas UTM não está salvo. Pode ser um UTM antigo.`);
+            orphanStats.push(statUtmId);
+            console.log(`⚠️ Estatísticas encontradas para UTM ${statUtmId} (${statsMap[statUtmId].totalClicks} cliques), mas UTM não está salvo. Pode ser um UTM antigo deletado.`);
           }
         });
+        
+        // If there are orphan stats, we should still show them
+        // The stats will be displayed even if the UTM is not saved
+        if (orphanStats.length > 0) {
+          console.log(`💡 ${orphanStats.length} UTMs com cliques não estão mais salvos. As estatísticas ainda serão exibidas.`);
+        }
       } else {
         console.log("⚠️ Nenhum UTM salvo encontrado para corresponder com estatísticas");
-        console.log("💡 Se você tinha UTMs antes, eles podem precisar ser recriados ou migrados.");
-        // Show stats that exist but have no corresponding UTM
         if (Object.keys(statsMap).length > 0) {
-          console.log("📊 Estatísticas encontradas para UTMs não salvos:", Object.keys(statsMap));
+          console.log(`💡 ${Object.keys(statsMap).length} UTMs têm cliques mas não estão salvos. As estatísticas ainda serão exibidas.`);
         }
       }
       
+      // IMPORTANT: Set stats even for orphan UTMs so they can be displayed
       setUtmStats(statsMap);
     } catch (error) {
       console.error("❌ Erro ao carregar estatísticas:", error);
@@ -974,7 +981,8 @@ const UTMBuilder = () => {
                     <p className="text-xs text-muted-foreground mt-1">Crie e salve UTMs para começar a rastrear cliques</p>
                   </div>
                 ) : (
-                  filteredUTMs.map((utm) => {
+                  <>
+                  {                  {filteredUTMs.map((utm) => {
                     if (!utm || !utm.id) return null;
                     
                     const utmIdString = String(utm.id);
@@ -1135,7 +1143,129 @@ const UTMBuilder = () => {
                         </div>
                       </div>
                     );
-                  })
+                  })}
+                  
+                  {/* Show orphan UTMs (with clicks but not saved) */}
+                  {(() => {
+                    // Find stats that don't have corresponding saved UTMs
+                    const orphanStats = Object.keys(utmStats).filter(statUtmId => {
+                      return !savedUTMs.find((utm: any) => String(utm.id) === statUtmId) && utmStats[statUtmId].totalClicks > 0;
+                    });
+                    
+                    if (orphanStats.length === 0) return null;
+                    
+                    return (
+                      <>
+                        <div className="mt-6 pt-6 border-t border-border">
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h4 className="text-sm font-semibold text-foreground">UTMs com Cliques (Não Salvos)</h4>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Estes UTMs têm cliques registrados mas não estão mais salvos. Você pode recriá-los se desejar.
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            {orphanStats.map((utmId) => {
+                              const stats = utmStats[utmId];
+                              const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
+                              
+                              return (
+                                <div key={utmId} className="p-3 rounded-lg border border-warning/20 bg-warning/5">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <h4 className="font-medium text-foreground text-sm">UTM {utmId}</h4>
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success">
+                                          <Eye className="h-3 w-3" />
+                                          {stats.totalClicks} cliques
+                                        </span>
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning">
+                                          Não salvo
+                                        </span>
+                                      </div>
+                                      
+                                      <div className="mt-2 pt-2 border-t border-border">
+                                        <div className="flex items-center gap-4 text-xs mb-2">
+                                          <div className="flex items-center gap-1">
+                                            <TrendingUp className="h-3 w-3 text-success" />
+                                            <span className="text-muted-foreground">Total de cliques:</span>
+                                            <span className="font-bold text-success text-sm">{stats.totalClicks}</span>
+                                          </div>
+                                          {stats.recentClicks > 0 && (
+                                            <div className="flex items-center gap-1">
+                                              <BarChart3 className="h-3 w-3 text-primary" />
+                                              <span className="text-muted-foreground">Últimos 30 dias:</span>
+                                              <span className="font-medium text-primary">{stats.recentClicks}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        {stats.lastClick && (
+                                          <p className="text-xs text-muted-foreground">
+                                            Último clique: <span className="font-medium text-foreground">{new Date(stats.lastClick).toLocaleString("pt-BR")}</span>
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2 ml-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={async () => {
+                                          // Get click details to try to reconstruct UTM
+                                          try {
+                                            const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
+                                            api.setBaseUrl(apiEndpoint);
+                                            const clickDetails = await api.getUTMStatsById(utmId);
+                                            
+                                            if (clickDetails.clicks && clickDetails.clicks.length > 0) {
+                                              // Try to extract URL from first click
+                                              const firstClick = clickDetails.clicks[0];
+                                              const url = firstClick.url || '';
+                                              
+                                              // Parse URL to extract UTM parameters
+                                              try {
+                                                const urlObj = new URL(url);
+                                                const params = urlObj.searchParams;
+                                                
+                                                setBaseUrl(urlObj.origin + urlObj.pathname);
+                                                setSource(params.get('utm_source') || '');
+                                                setMedium(params.get('utm_medium') || '');
+                                                setCampaign(params.get('utm_campaign') || '');
+                                                setContent(params.get('utm_content') || '');
+                                                setTerm(params.get('utm_term') || '');
+                                                setUtmName(`UTM ${utmId} (Recuperado)`);
+                                                
+                                                toast.success("UTM recuperado! Preencha o nome e salve.");
+                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                              } catch (urlError) {
+                                                toast.error("Não foi possível extrair informações da URL");
+                                              }
+                                            } else {
+                                              toast.error("Não há informações suficientes para recuperar este UTM");
+                                            }
+                                          } catch (error) {
+                                            console.error("Erro ao recuperar UTM:", error);
+                                            toast.error("Erro ao recuperar informações do UTM");
+                                          }
+                                        }}
+                                        className="gap-2"
+                                      >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Recuperar UTM
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
                 )}
               </div>
             </div>
