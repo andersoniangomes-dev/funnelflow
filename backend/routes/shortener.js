@@ -82,27 +82,27 @@ router.get('/info/:code', async (req, res) => {
       });
     } else {
       // Fallback to JSON
-      const shortUrls = await loadShortUrls();
-      const shortUrlData = shortUrls[code.toLowerCase()];
+    const shortUrls = await loadShortUrls();
+    const shortUrlData = shortUrls[code.toLowerCase()];
 
-      if (!shortUrlData) {
-        return res.status(404).json({
-          error: 'Short URL not found'
-        });
-      }
-
-      const protocol = req.protocol;
-      const host = req.get('host');
-      const shortUrl = `${protocol}://${host}/s/${code}`;
-
-      res.json({
-        shortCode: code,
-        shortUrl,
-        originalUrl: shortUrlData.originalUrl,
-        clicks: shortUrlData.clicks || 0,
-        createdAt: shortUrlData.createdAt,
-        lastClick: shortUrlData.lastClick
+    if (!shortUrlData) {
+      return res.status(404).json({
+        error: 'Short URL not found'
       });
+    }
+
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const shortUrl = `${protocol}://${host}/s/${code}`;
+
+    res.json({
+      shortCode: code,
+      shortUrl,
+      originalUrl: shortUrlData.originalUrl,
+      clicks: shortUrlData.clicks || 0,
+      createdAt: shortUrlData.createdAt,
+      lastClick: shortUrlData.lastClick
+    });
     }
   } catch (error) {
     console.error('Error getting short URL info:', error);
@@ -132,12 +132,12 @@ router.post('/shorten', async (req, res) => {
         error: 'Invalid URL format'
       });
     }
-
+    
     let shortCode;
 
     if (isDatabaseAvailable()) {
       try {
-        if (customCode) {
+    if (customCode) {
           // Check if custom code exists
           const existing = await sql`
             SELECT * FROM short_urls
@@ -146,13 +146,13 @@ router.post('/shorten', async (req, res) => {
           `;
 
           if (existing.length > 0) {
-            return res.status(409).json({
-              error: 'Custom code already exists'
-            });
-          }
-          shortCode = customCode.toLowerCase();
-        } else {
-          // Generate unique code
+        return res.status(409).json({
+          error: 'Custom code already exists'
+        });
+      }
+      shortCode = customCode.toLowerCase();
+    } else {
+      // Generate unique code
           let exists = true;
           while (exists) {
             shortCode = generateShortCode();
@@ -194,30 +194,30 @@ router.post('/shorten', async (req, res) => {
           }
           shortCode = customCode.toLowerCase();
         } else {
-          do {
-            shortCode = generateShortCode();
-          } while (shortUrls[shortCode]);
-        }
+      do {
+        shortCode = generateShortCode();
+      } while (shortUrls[shortCode]);
+    }
 
-        shortUrls[shortCode] = {
-          originalUrl: url,
-          createdAt: new Date().toISOString(),
-          clicks: 0,
-          lastClick: null
-        };
+    shortUrls[shortCode] = {
+      originalUrl: url,
+      createdAt: new Date().toISOString(),
+      clicks: 0,
+      lastClick: null
+    };
 
-        await saveShortUrls(shortUrls);
+    await saveShortUrls(shortUrls);
 
-        const protocol = req.protocol;
-        const host = req.get('host');
-        const shortUrl = `${protocol}://${host}/s/${shortCode}`;
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const shortUrl = `${protocol}://${host}/s/${shortCode}`;
 
-        res.json({
-          success: true,
-          shortCode,
-          shortUrl,
-          originalUrl: url
-        });
+    res.json({
+      success: true,
+      shortCode,
+      shortUrl,
+      originalUrl: url
+    });
       }
     } else {
       // Use JSON fallback
@@ -305,7 +305,7 @@ router.get('/:code', async (req, res) => {
       } catch (dbError) {
         console.error('Erro ao acessar banco de dados, usando fallback JSON:', dbError);
         // Fallback to JSON
-        const shortUrls = await loadShortUrls();
+    const shortUrls = await loadShortUrls();
         const shortUrlData = shortUrls[code.toLowerCase()];
 
         if (!shortUrlData) {
@@ -323,19 +323,19 @@ router.get('/:code', async (req, res) => {
     } else {
       // Use JSON fallback
       const shortUrls = await loadShortUrls();
-      const shortUrlData = shortUrls[code.toLowerCase()];
+    const shortUrlData = shortUrls[code.toLowerCase()];
 
-      if (!shortUrlData) {
-        return res.status(404).json({
-          error: 'Short URL not found'
-        });
-      }
+    if (!shortUrlData) {
+      return res.status(404).json({
+        error: 'Short URL not found'
+      });
+    }
 
-      shortUrlData.clicks = (shortUrlData.clicks || 0) + 1;
-      shortUrlData.lastClick = new Date().toISOString();
-      await saveShortUrls(shortUrls);
+    shortUrlData.clicks = (shortUrlData.clicks || 0) + 1;
+    shortUrlData.lastClick = new Date().toISOString();
+    await saveShortUrls(shortUrls);
 
-      res.redirect(shortUrlData.originalUrl);
+    res.redirect(shortUrlData.originalUrl);
     }
   } catch (error) {
     console.error('Error redirecting short URL:', error);

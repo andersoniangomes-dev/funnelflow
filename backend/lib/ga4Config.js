@@ -46,6 +46,8 @@ export async function loadGA4Config() {
   // Try database first
   const credentialsFromDB = await getCredentialsFromDB();
   if (credentialsFromDB) {
+    // Don't set GOOGLE_APPLICATION_CREDENTIALS here - it will be set by ga4Client when needed
+    // Just return the config without setting env vars that could cause issues
     return {
       propertyId: process.env.GA4_PROPERTY_ID,
       credentials: credentialsFromDB,
@@ -63,8 +65,16 @@ export async function loadGA4Config() {
       process.env.GA4_PROPERTY_ID = config.propertyId;
     }
     
-    if (config.credentialsPath) {
-      process.env.GOOGLE_APPLICATION_CREDENTIALS = config.credentialsPath;
+    // Only set GOOGLE_APPLICATION_CREDENTIALS if it's a valid file path (string)
+    if (config.credentialsPath && typeof config.credentialsPath === 'string') {
+      // Verify the file exists before setting the env var
+      try {
+        await fs.access(config.credentialsPath);
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = config.credentialsPath;
+      } catch (fileError) {
+        console.warn('Credentials file not found, not setting GOOGLE_APPLICATION_CREDENTIALS:', config.credentialsPath);
+        // Don't set invalid path
+      }
     }
     
     return {
@@ -73,6 +83,15 @@ export async function loadGA4Config() {
     };
   } catch (error) {
     // Config doesn't exist, use environment variables as fallback
+    // Only use GOOGLE_APPLICATION_CREDENTIALS if it's a valid string path
+    const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (credentialsPath && typeof credentialsPath === 'string' && !credentialsPath.startsWith('{')) {
+      // It's a valid file path, use it
+    } else {
+      // It's not a valid path (might be JSON object), clear it
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    }
+    
     return {
       propertyId: process.env.GA4_PROPERTY_ID,
       credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS
@@ -87,16 +106,11 @@ export function getGA4PropertyId() {
 
 // Get credentials path
 export function getCredentialsPath() {
-  // Only return path if it's actually a file path, not JSON content
   const path = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (!path) return null;
-  
-  // If it looks like JSON (starts with {), return null
-  // This happens when credentials are loaded from database
-  if (path.trim().startsWith('{')) {
-    return null;
+  // Only return if it's a valid string path (not JSON object)
+  if (path && typeof path === 'string' && !path.trim().startsWith('{')) {
+    return path;
   }
-  
-  return path;
+  return null;
 }
 

@@ -131,9 +131,9 @@ router.post('/', async (req, res) => {
 
         // Set environment variable for current process
         process.env.GA4_PROPERTY_ID = propertyId.trim();
-        // Don't set GOOGLE_APPLICATION_CREDENTIALS when using database
-        // The ga4Client will load credentials from database and create temp file
-        // This avoids the ENAMETOOLONG error
+        // For database mode, don't set GOOGLE_APPLICATION_CREDENTIALS here
+        // It will be set dynamically by ga4Client when needed using temp file
+        // This prevents issues where the env var might contain JSON object instead of file path
 
         return res.json({
           success: true,

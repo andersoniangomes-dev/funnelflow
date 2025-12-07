@@ -37,17 +37,17 @@ const Events = () => {
   const fetchEvents = async () => {
     setIsLoading(true);
     try {
-      const response: any = await api.getEvents(startDate, endDate);
+      const response = await api.getEvents(startDate, endDate);
       
       // Check if response has events array
       if (response && response.events && Array.isArray(response.events)) {
-        const events = response.events.map((event: any) => ({
-          name: event.name,
+      const events = response.events.map((event: any) => ({
+        name: event.name,
           count: event.count || 0,
           users: event.users || 0,
-          status: event.status || "ativo"
-        }));
-        setEventsData(events);
+        status: event.status || "ativo"
+      }));
+      setEventsData(events);
       } else {
         // If no events in response, set empty array
         setEventsData([]);

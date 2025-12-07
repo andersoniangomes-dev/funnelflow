@@ -72,7 +72,7 @@ const UTMBuilder = () => {
     if (savedUTMs && savedUTMs.length > 0) {
       const updatedUTMs = savedUTMs.map((utm: any) => {
         if (!utm.trackingUrl && utm.url) {
-          const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
+          const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
           return {
             ...utm,
             trackingUrl: `${apiEndpoint}/utm/track/${utm.id}?url=${encodeURIComponent(utm.url)}`
@@ -617,7 +617,7 @@ const UTMBuilder = () => {
                       <code className="text-sm text-foreground break-all">
                         {(() => {
                           const utmId = Date.now().toString();
-                          const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
+                          const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
                           return `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
                         })()}
                       </code>
