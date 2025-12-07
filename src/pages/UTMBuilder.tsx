@@ -1012,10 +1012,24 @@ const UTMBuilder = () => {
                             )}
                             {hasShortUrl ? (
                               <div className="mt-1">
-                                <p className="text-xs text-success font-medium flex items-center gap-1">
-                                  <Link2 className="h-3 w-3" />
-                                  URL Encurtada: {utm.shortUrl}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-success font-medium flex items-center gap-1 flex-1">
+                                    <Link2 className="h-3 w-3" />
+                                    URL Encurtada: <span className="truncate">{utm.shortUrl}</span>
+                                  </p>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-xs"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(utm.shortUrl);
+                                      toast.success("URL encurtada copiada!");
+                                    }}
+                                    title="Copiar URL encurtada"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
                                 {trackingUrl && (
                                   <p className="text-xs text-muted-foreground mt-0.5">
                                     Tracking: {trackingUrl.length > 50 ? `${trackingUrl.substring(0, 50)}...` : trackingUrl}

@@ -5,23 +5,44 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { sql, isDatabaseAvailable } from '../lib/db.js';
 
-const router = express.Router();
-
+// Import click tracking functions from utm.js (for JSON fallback)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const UTM_DATA_DIR = path.join(__dirname, '../data');
+const CLICKS_FILE = path.join(UTM_DATA_DIR, 'utm-clicks.json');
 
-// Path to store shortened URLs (fallback)
-const DATA_DIR = path.join(__dirname, '../data');
-const SHORT_URLS_FILE = path.join(DATA_DIR, 'short-urls.json');
-
-// Ensure data directory exists (for fallback)
 async function ensureDataDir() {
   try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.mkdir(UTM_DATA_DIR, { recursive: true });
   } catch (error) {
     console.error('Error creating data directory:', error);
   }
 }
+
+async function loadClicks() {
+  try {
+    await ensureDataDir();
+    const data = await fs.readFile(CLICKS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    return {};
+  }
+}
+
+async function saveClicks(clicks) {
+  try {
+    await ensureDataDir();
+    await fs.writeFile(CLICKS_FILE, JSON.stringify(clicks, null, 2), 'utf8');
+  } catch (error) {
+    console.error('Error saving clicks:', error);
+  }
+}
+
+const router = express.Router();
+
+// Path to store shortened URLs (fallback)
+const DATA_DIR = path.join(__dirname, '../data');
+const SHORT_URLS_FILE = path.join(DATA_DIR, 'short-urls.json');
 
 // Load short URLs (fallback - JSON file)
 async function loadShortUrls() {
@@ -293,7 +314,32 @@ router.get('/:code', async (req, res) => {
 
         const shortUrlData = result[0];
 
-        // Update click count and last click
+        // Check if original_url is a tracking URL (/utm/track/:utmId?url=...)
+        const originalUrl = shortUrlData.original_url;
+        const trackingUrlMatch = originalUrl.match(/\/utm\/track\/([^?]+)\?url=(.+)/);
+        
+        if (trackingUrlMatch) {
+          // This is a tracking URL - register the click in utm_clicks before redirecting
+          const utmId = trackingUrlMatch[1];
+          const finalUrl = decodeURIComponent(trackingUrlMatch[2]);
+          const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+          const userAgent = req.headers['user-agent'] || 'unknown';
+          const referer = req.headers['referer'] || 'unknown';
+          
+          try {
+            // Register click in utm_clicks table
+            await sql`
+              INSERT INTO utm_clicks (utm_id, url, ip, user_agent, referer, timestamp)
+              VALUES (${String(utmId)}, ${finalUrl}, ${ip}, ${userAgent}, ${referer}, CURRENT_TIMESTAMP)
+            `;
+            console.log(`✅ Clique registrado no UTM ${utmId} via link encurtado ${code}`);
+          } catch (trackingError) {
+            console.error('Erro ao registrar clique do link encurtado:', trackingError);
+            // Continue with redirect even if tracking fails
+          }
+        }
+
+        // Update click count and last click for the short URL
         await sql`
           UPDATE short_urls
           SET clicks = clicks + 1,
@@ -301,7 +347,13 @@ router.get('/:code', async (req, res) => {
           WHERE short_code = ${code.toLowerCase()}
         `;
 
-        res.redirect(shortUrlData.original_url);
+        // If it's a tracking URL, redirect to the final URL directly (skip the tracking redirect)
+        if (trackingUrlMatch) {
+          const finalUrl = decodeURIComponent(trackingUrlMatch[2]);
+          res.redirect(finalUrl);
+        } else {
+          res.redirect(originalUrl);
+        }
       } catch (dbError) {
         console.error('Erro ao acessar banco de dados, usando fallback JSON:', dbError);
         // Fallback to JSON
@@ -314,11 +366,51 @@ router.get('/:code', async (req, res) => {
           });
         }
 
+        // Check if originalUrl is a tracking URL
+        const originalUrl = shortUrlData.originalUrl;
+        const trackingUrlMatch = originalUrl.match(/\/utm\/track\/([^?]+)\?url=(.+)/);
+        
+        if (trackingUrlMatch) {
+          // This is a tracking URL - register the click in utm_clicks before redirecting
+          const utmId = trackingUrlMatch[1];
+          const finalUrl = decodeURIComponent(trackingUrlMatch[2]);
+          const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+          const userAgent = req.headers['user-agent'] || 'unknown';
+          const referer = req.headers['referer'] || 'unknown';
+          
+          try {
+            // Load clicks from JSON fallback
+            const clicks = await loadClicks();
+            if (!clicks[utmId]) {
+              clicks[utmId] = { totalClicks: 0, clicks: [], lastClick: null };
+            }
+            clicks[utmId].clicks.push({
+              timestamp: new Date().toISOString(),
+              url: finalUrl,
+              ip,
+              userAgent,
+              referer
+            });
+            clicks[utmId].totalClicks = clicks[utmId].clicks.length;
+            clicks[utmId].lastClick = new Date().toISOString();
+            await saveClicks(clicks);
+            console.log(`✅ Clique registrado no UTM ${utmId} via link encurtado ${code} (JSON fallback)`);
+          } catch (trackingError) {
+            console.error('Erro ao registrar clique do link encurtado:', trackingError);
+          }
+        }
+
         shortUrlData.clicks = (shortUrlData.clicks || 0) + 1;
         shortUrlData.lastClick = new Date().toISOString();
         await saveShortUrls(shortUrls);
 
-        res.redirect(shortUrlData.originalUrl);
+        // If it's a tracking URL, redirect to the final URL directly
+        if (trackingUrlMatch) {
+          const finalUrl = decodeURIComponent(trackingUrlMatch[2]);
+          res.redirect(finalUrl);
+        } else {
+          res.redirect(originalUrl);
+        }
       }
     } else {
       // Use JSON fallback
