@@ -47,7 +47,7 @@ const SHORT_URLS_FILE = path.join(DATA_DIR, 'short-urls.json');
 // Load short URLs (fallback - JSON file)
 async function loadShortUrls() {
   try {
-    await ensureDataDir();
+    await ensureDataDir(); // Uses the function defined above
     const data = await fs.readFile(SHORT_URLS_FILE, 'utf8');
     return JSON.parse(data);
   } catch (error) {
