@@ -245,6 +245,101 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// Delete clicks for orphan UTMs (UTMs not saved)
+router.delete('/clicks/orphans', async (req, res) => {
+  try {
+    if (isDatabaseAvailable()) {
+      // Get all saved UTM IDs
+      const savedUTMs = await sql`
+        SELECT id::text as id FROM saved_utms
+      `;
+      const savedUtmIds = savedUTMs.map(u => String(u.id));
+      
+      if (savedUtmIds.length === 0) {
+        // No saved UTMs, delete all clicks
+        await sql`DELETE FROM utm_clicks`;
+        return res.json({ 
+          success: true, 
+          deleted: 'all',
+          message: 'Todos os cliques foram deletados (nenhum UTM salvo)' 
+        });
+      }
+      
+      // Delete clicks for UTMs that are not saved
+      const result = await sql`
+        DELETE FROM utm_clicks
+        WHERE utm_id::text NOT IN (${sql(savedUtmIds)})
+      `;
+      
+      res.json({ 
+        success: true, 
+        deleted: result.count || 0,
+        message: `${result.count || 0} cliques de UTMs não salvos foram deletados` 
+      });
+    } else {
+      res.status(503).json({
+        error: 'Database not available'
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting orphan clicks:', error);
+    res.status(500).json({
+      error: 'Failed to delete orphan clicks',
+      message: error.message
+    });
+  }
+});
+
+// Delete clicks for orphan UTMs (UTMs not saved)
+router.delete('/clicks/orphans', async (req, res) => {
+  try {
+    if (isDatabaseAvailable()) {
+      // Get all saved UTM IDs
+      const savedUTMs = await sql`
+        SELECT id::text as id FROM saved_utms
+      `;
+      const savedUtmIds = savedUTMs.map(u => String(u.id));
+      
+      console.log(`🗑️ Deletando cliques de UTMs órfãos. UTMs salvos: ${savedUtmIds.length}`);
+      
+      if (savedUtmIds.length === 0) {
+        // No saved UTMs, delete all clicks
+        const result = await sql`DELETE FROM utm_clicks`;
+        return res.json({ 
+          success: true, 
+          deleted: 'all',
+          message: 'Todos os cliques foram deletados (nenhum UTM salvo)' 
+        });
+      }
+      
+      // Delete clicks for UTMs that are not saved
+      // Use NOT IN with array
+      const result = await sql`
+        DELETE FROM utm_clicks
+        WHERE utm_id::text NOT IN (${sql(savedUtmIds)})
+      `;
+      
+      console.log(`✅ Cliques órfãos deletados`);
+      
+      res.json({ 
+        success: true, 
+        deleted: result.count || 0,
+        message: `${result.count || 0} cliques de UTMs não salvos foram deletados` 
+      });
+    } else {
+      res.status(503).json({
+        error: 'Database not available'
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting orphan clicks:', error);
+    res.status(500).json({
+      error: 'Failed to delete orphan clicks',
+      message: error.message
+    });
+  }
+});
+
 // Get stats for specific UTM
 router.get('/stats/:utmId', async (req, res) => {
   try {

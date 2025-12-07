@@ -1265,6 +1265,35 @@ const UTMBuilder = () => {
                                 Estes UTMs têm cliques registrados mas não estão mais salvos. Você pode recriá-los se desejar.
                               </p>
                             </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                if (!confirm(`Tem certeza que deseja deletar todos os cliques de UTMs não salvos?\n\nIsso vai remover ${orphanStats.length} UTMs órfãos com seus cliques.`)) {
+                                  return;
+                                }
+                                
+                                try {
+                                  const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
+                                  api.setBaseUrl(apiEndpoint);
+                                  const response = await api.deleteOrphanClicks();
+                                  
+                                  toast.success(response.message || "Cliques de UTMs órfãos deletados com sucesso!");
+                                  
+                                  // Reload stats after deletion
+                                  setTimeout(() => {
+                                    loadStats();
+                                  }, 1000);
+                                } catch (error) {
+                                  console.error("Erro ao deletar cliques órfãos:", error);
+                                  toast.error("Erro ao deletar cliques de UTMs órfãos");
+                                }
+                              }}
+                              className="gap-2 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Limpar Todos
+                            </Button>
                           </div>
                           
                           <div className="space-y-3">

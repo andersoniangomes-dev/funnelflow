@@ -249,6 +249,12 @@ class ApiClient {
     });
   }
 
+  async deleteOrphanClicks() {
+    return this.request<{ success: boolean; deleted: number | string; message: string }>('/utm/clicks/orphans', {
+      method: 'DELETE'
+    });
+  }
+
   setBaseUrl(url: string) {
     // Remove trailing slash to avoid double slashes in URLs
     this.baseUrl = url.replace(/\/$/, '');
