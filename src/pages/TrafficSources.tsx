@@ -208,8 +208,13 @@ const TrafficSources = () => {
         </div>
 
         {/* Source Details Table */}
-        <div className="glass-card p-6 animate-fade-in">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Detalhes de Desempenho por Fonte</h3>
+        <div className="glass-card p-4 sm:p-6 animate-fade-in">
+          <div className="mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">Detalhes de Desempenho por Fonte (utm_source)</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Fontes baseadas nas UTMs criadas e dados do GA4. Inclui begin_checkout como conversão.
+            </p>
+          </div>
           {isLoading ? (
             <div className="text-center py-8">
               <p className="text-sm text-muted-foreground">Carregando dados...</p>
