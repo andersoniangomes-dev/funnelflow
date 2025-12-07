@@ -17,6 +17,15 @@ import { initializeDatabase } from './lib/db.js';
 // Load environment variables
 dotenv.config();
 
+// Clean up GOOGLE_APPLICATION_CREDENTIALS if it contains JSON object (invalid)
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (typeof credsPath === 'string' && credsPath.trim().startsWith('{')) {
+    console.warn('⚠️ GOOGLE_APPLICATION_CREDENTIALS contains JSON object, clearing it');
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  }
+}
+
 // Initialize database
 initializeDatabase().catch(err => {
   console.error('Error initializing database:', err);

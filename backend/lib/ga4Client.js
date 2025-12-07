@@ -26,9 +26,12 @@ export async function getAnalyticsClient() {
         
         const client = new BetaAnalyticsDataClient();
         
-        // Restore original if it existed
-        if (originalPath) {
+        // Only restore original if it's a valid file path (not JSON object)
+        if (originalPath && typeof originalPath === 'string' && !originalPath.trim().startsWith('{')) {
           process.env.GOOGLE_APPLICATION_CREDENTIALS = originalPath;
+        } else {
+          // Clear invalid path (was JSON object or invalid)
+          delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
         }
         
         return client;
@@ -45,15 +48,24 @@ export async function getAnalyticsClient() {
       return null;
     }
     
+    // Verify credentialsPath is valid before using
+    if (typeof credentialsPath !== 'string' || credentialsPath.trim().startsWith('{')) {
+      console.error('Invalid credentials path (looks like JSON object):', credentialsPath?.substring(0, 50));
+      return null;
+    }
+    
     // Temporarily set the env var for the client
     const originalPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
     
     const client = new BetaAnalyticsDataClient();
     
-    // Restore original if it existed
-    if (originalPath) {
+    // Only restore original if it's a valid file path (not JSON object)
+    if (originalPath && typeof originalPath === 'string' && !originalPath.trim().startsWith('{')) {
       process.env.GOOGLE_APPLICATION_CREDENTIALS = originalPath;
+    } else {
+      // Clear invalid path (was JSON object or invalid)
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     }
     
     return client;

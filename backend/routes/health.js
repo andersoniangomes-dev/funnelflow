@@ -25,15 +25,25 @@ router.get('/', async (req, res) => {
       });
     }
 
-    const credentialsPath = getCredentialsPath() || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    // Try to get credentials from database first (preferred)
+    // Don't check GOOGLE_APPLICATION_CREDENTIALS directly as it might contain JSON object
+    const credentialsPath = getCredentialsPath();
     
+    // If no valid credentials path, try database
     if (!credentialsPath) {
-      return res.status(200).json({
-        status: 'ok',
-        ga4: 'not_configured',
-        message: 'Backend is running. Google credentials not configured. Please set GOOGLE_APPLICATION_CREDENTIALS in .env',
-        propertyId: propertyId
-      });
+      // Check if we have credentials in database
+      const { getCredentialsFromDB } = await import('../lib/ga4Config.js');
+      const credentialsFromDB = await getCredentialsFromDB();
+      
+      if (!credentialsFromDB) {
+        return res.status(200).json({
+          status: 'ok',
+          ga4: 'not_configured',
+          message: 'Backend is running. Google credentials not configured. Please configure GA4 in Settings.',
+          propertyId: propertyId
+        });
+      }
+      // If we have credentials in DB, continue to test connection
     }
 
     // Test connection to GA4 (but don't fail health check if it fails)
