@@ -7,11 +7,14 @@ import os from 'os';
 // Initialize GA4 client dynamically based on saved config
 export async function getAnalyticsClient() {
   try {
-    // Clean up any invalid GOOGLE_APPLICATION_CREDENTIALS first
+    // CRITICAL: Clean up any invalid GOOGLE_APPLICATION_CREDENTIALS first
+    // This must be done before creating the client
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      if (typeof credsPath === 'string' && credsPath.trim().startsWith('{')) {
-        console.warn('⚠️ GOOGLE_APPLICATION_CREDENTIALS contains JSON object, clearing it');
+      // Check if it's a JSON object (starts with {) or too long (likely JSON)
+      if (typeof credsPath === 'string' && (credsPath.trim().startsWith('{') || credsPath.length > 500)) {
+        console.warn('⚠️ GOOGLE_APPLICATION_CREDENTIALS contains JSON object or invalid value, clearing it');
+        console.warn('⚠️ Value preview:', credsPath.substring(0, 100));
         delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
       }
     }
