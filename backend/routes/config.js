@@ -2,13 +2,14 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { sql, isDatabaseAvailable } from '../lib/db.js';
 
 const router = express.Router();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Path to store config
+// Path to store config (fallback)
 const CONFIG_DIR = path.join(__dirname, '../config');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'ga4-config.json');
 const CREDENTIALS_FILE = path.join(CONFIG_DIR, 'service-account-key.json');
@@ -25,13 +26,37 @@ async function ensureConfigDir() {
 // Get current configuration
 router.get('/', async (req, res) => {
   try {
+    // Try database first
+    if (isDatabaseAvailable()) {
+      try {
+        const result = await sql`
+          SELECT * FROM ga4_config
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `;
+
+        if (result.length > 0) {
+          const config = result[0];
+          return res.json({
+            propertyId: config.property_id || '',
+            hasCredentials: !!config.credentials,
+            credentialsPath: null, // Not needed when using DB
+            configured: !!(config.property_id && config.credentials)
+          });
+        }
+      } catch (dbError) {
+        console.error('Error reading from database, using fallback:', dbError);
+        // Fall through to file-based fallback
+      }
+    }
+
+    // Fallback to file-based storage
     await ensureConfigDir();
     
     try {
       const configData = await fs.readFile(CONFIG_FILE, 'utf8');
       const config = JSON.parse(configData);
       
-      // Don't send the full credentials, just indicate if they exist
       res.json({
         propertyId: config.propertyId || '',
         hasCredentials: !!config.credentials,
@@ -59,8 +84,6 @@ router.get('/', async (req, res) => {
 // Save configuration
 router.post('/', async (req, res) => {
   try {
-    await ensureConfigDir();
-    
     const { propertyId, credentials } = req.body;
     
     if (!propertyId) {
@@ -92,6 +115,46 @@ router.post('/', async (req, res) => {
         message: parseError.message
       });
     }
+
+    // Try database first
+    if (isDatabaseAvailable()) {
+      try {
+        // Use UPSERT (INSERT ... ON CONFLICT)
+        await sql`
+          INSERT INTO ga4_config (property_id, credentials, updated_at)
+          VALUES (${propertyId.trim()}, ${JSON.stringify(credentialsObj)}::jsonb, CURRENT_TIMESTAMP)
+          ON CONFLICT (property_id) 
+          DO UPDATE SET 
+            credentials = EXCLUDED.credentials,
+            updated_at = CURRENT_TIMESTAMP
+        `;
+
+        // Set environment variable for current process
+        process.env.GA4_PROPERTY_ID = propertyId.trim();
+        // For database mode, we'll need to handle credentials differently
+        // For now, still save to file for GA4 client compatibility
+        await ensureConfigDir();
+        await fs.writeFile(
+          CREDENTIALS_FILE,
+          JSON.stringify(credentialsObj, null, 2),
+          'utf8'
+        );
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = CREDENTIALS_FILE;
+
+        return res.json({
+          success: true,
+          message: 'Configuration saved successfully to database',
+          propertyId: propertyId.trim(),
+          hasCredentials: true
+        });
+      } catch (dbError) {
+        console.error('Error saving to database, using fallback:', dbError);
+        // Fall through to file-based fallback
+      }
+    }
+
+    // Fallback to file-based storage
+    await ensureConfigDir();
     
     // Save credentials file
     await fs.writeFile(
@@ -117,9 +180,6 @@ router.post('/', async (req, res) => {
     process.env.GA4_PROPERTY_ID = config.propertyId;
     process.env.GOOGLE_APPLICATION_CREDENTIALS = CREDENTIALS_FILE;
     
-    // Note: The GA4 client will be reinitialized on next request
-    // since getAnalyticsClient() reads from env vars dynamically
-    
     res.json({
       success: true,
       message: 'Configuration saved successfully',
@@ -139,9 +199,38 @@ router.post('/', async (req, res) => {
 // Delete configuration
 router.delete('/', async (req, res) => {
   try {
+    // Try database first
+    if (isDatabaseAvailable()) {
+      try {
+        await sql`DELETE FROM ga4_config`;
+        // Also delete files for consistency
+        try {
+          await fs.unlink(CONFIG_FILE);
+        } catch (error) {
+          // File doesn't exist, that's ok
+        }
+        try {
+          await fs.unlink(CREDENTIALS_FILE);
+        } catch (error) {
+          // File doesn't exist, that's ok
+        }
+        
+        delete process.env.GA4_PROPERTY_ID;
+        delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        
+        return res.json({
+          success: true,
+          message: 'Configuration deleted successfully'
+        });
+      } catch (dbError) {
+        console.error('Error deleting from database, using fallback:', dbError);
+        // Fall through to file-based deletion
+      }
+    }
+
+    // Fallback to file-based deletion
     await ensureConfigDir();
     
-    // Delete config files
     try {
       await fs.unlink(CONFIG_FILE);
     } catch (error) {
@@ -154,7 +243,6 @@ router.delete('/', async (req, res) => {
       // File doesn't exist, that's ok
     }
     
-    // Clear environment variables
     delete process.env.GA4_PROPERTY_ID;
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     

@@ -9,10 +9,18 @@ import trafficRoutes from './routes/traffic.js';
 import configRoutes from './routes/config.js';
 import utmRoutes from './routes/utm.js';
 import shortenerRoutes from './routes/shortener.js';
+import funnelsRoutes from './routes/funnels.js';
+import savedUtmsRoutes from './routes/saved-utms.js';
 import { loadGA4Config } from './lib/ga4Config.js';
+import { initializeDatabase } from './lib/db.js';
 
 // Load environment variables
 dotenv.config();
+
+// Initialize database
+initializeDatabase().catch(err => {
+  console.error('Error initializing database:', err);
+});
 
 // Load GA4 configuration from saved config
 loadGA4Config().then(config => {
@@ -39,7 +47,11 @@ app.use('/funnel', funnelRoutes);
 app.use('/traffic', trafficRoutes);
 app.use('/utm', utmRoutes);
 app.use('/s', shortenerRoutes);
+app.use('/api/funnels', funnelsRoutes);
+app.use('/api/utms', savedUtmsRoutes);
 console.log('✅ Shortener routes registered at /s');
+console.log('✅ Funnels API routes registered at /api/funnels');
+console.log('✅ Saved UTMs API routes registered at /api/utms');
 
 // Root endpoint
 app.get('/', (req, res) => {

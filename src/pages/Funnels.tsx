@@ -13,7 +13,8 @@ import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useApi } from "@/hooks/useApi";
-import { CreateFunnelDialog, loadSavedFunnels, saveFunnels } from "@/components/funnels/CreateFunnelDialog";
+import { CreateFunnelDialog } from "@/components/funnels/CreateFunnelDialog";
+import { loadSavedFunnels, saveFunnels } from "@/components/funnels/CreateFunnelDialog";
 
 const Funnels = () => {
   const [funnelSteps, setFunnelSteps] = useState<Array<{
@@ -29,26 +30,29 @@ const Funnels = () => {
     totalRevenue: "R$ 0"
   });
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [savedFunnels, setSavedFunnels] = useState(loadSavedFunnels());
+  const [savedFunnels, setSavedFunnels] = useState<any[]>([]);
   const [selectedFunnelId, setSelectedFunnelId] = useState<number | null>(null);
   const [currentFunnelName, setCurrentFunnelName] = useState("");
   const [startDate, setStartDate] = useState("30daysAgo");
   const [endDate, setEndDate] = useState("today");
+  const [isLoadingFunnels, setIsLoadingFunnels] = useState(true);
 
   useApi();
 
   useEffect(() => {
     loadSavedFunnelsList();
+  }, []);
+
+  useEffect(() => {
     // Load default funnel if exists
-    const funnels = loadSavedFunnels();
-    const defaultFunnel = funnels.find((f: any) => f.isDefault);
+    const defaultFunnel = savedFunnels.find((f: any) => f.isDefault);
     
     if (defaultFunnel && defaultFunnel.steps) {
       setSelectedFunnelId(defaultFunnel.id);
       setCurrentFunnelName(defaultFunnel.name);
       // fetchFunnel será chamado automaticamente pelo useEffect quando selectedFunnelId mudar
     }
-  }, []);
+  }, [savedFunnels]);
 
   useEffect(() => {
     // Reload funnel when date range, selected funnel, or saved funnels changes
@@ -62,29 +66,45 @@ const Funnels = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate, selectedFunnelId, savedFunnels]);
 
-  const loadSavedFunnelsList = () => {
-    setSavedFunnels(loadSavedFunnels());
+  const loadSavedFunnelsList = async () => {
+    setIsLoadingFunnels(true);
+    try {
+      const funnels = await loadSavedFunnels();
+      setSavedFunnels(funnels);
+    } catch (error) {
+      console.error("Erro ao carregar funis:", error);
+      setSavedFunnels([]);
+    } finally {
+      setIsLoadingFunnels(false);
+    }
   };
 
   const handleFunnelCreated = () => {
     loadSavedFunnelsList();
   };
 
-  const setDefaultFunnel = (funnelId: number) => {
-    const updated = savedFunnels.map((f: any) => ({
-      ...f,
-      isDefault: f.id === funnelId
-    }));
-    saveFunnels(updated);
-    setSavedFunnels(updated);
-    toast.success("Funil definido como padrão!");
-    
-    // Se o funil selecionado for o padrão, atualizar o nome
-    if (funnelId === selectedFunnelId) {
-      const defaultFunnel = updated.find((f: any) => f.id === funnelId);
-      if (defaultFunnel) {
-        setCurrentFunnelName(defaultFunnel.name);
+  const setDefaultFunnel = async (funnelId: number) => {
+    try {
+      const updated = savedFunnels.map((f: any) => ({
+        ...f,
+        isDefault: f.id === funnelId
+      }));
+      
+      // Save to database
+      await saveFunnels(updated);
+      setSavedFunnels(updated);
+      toast.success("Funil definido como padrão!");
+      
+      // Se o funil selecionado for o padrão, atualizar o nome
+      if (funnelId === selectedFunnelId) {
+        const defaultFunnel = updated.find((f: any) => f.id === funnelId);
+        if (defaultFunnel) {
+          setCurrentFunnelName(defaultFunnel.name);
+        }
       }
+    } catch (error) {
+      console.error("Erro ao definir funil padrão:", error);
+      toast.error("Erro ao definir funil padrão");
     }
   };
 
@@ -423,34 +443,50 @@ const Funnels = () => {
                         className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Tem certeza que deseja deletar o funil "${funnel.name}"?`)) {
+                            if (confirm(`Tem certeza que deseja deletar o funil "${funnel.name}"?`)) {
                             const wasDefault = funnel.isDefault;
-                            const updated = savedFunnels.filter(f => f.id !== funnel.id);
-                            saveFunnels(updated);
-                            setSavedFunnels(updated);
                             
-                            if (selectedFunnelId === funnel.id) {
-                              // Se era o funil padrão, carregar o novo padrão ou o padrão do sistema
-                              const newDefaultFunnel = updated.find((f: any) => f.isDefault);
-                              if (newDefaultFunnel) {
-                                setSelectedFunnelId(newDefaultFunnel.id);
-                                setCurrentFunnelName(newDefaultFunnel.name);
-                              } else {
-                                setSelectedFunnelId(null);
-                                setCurrentFunnelName("");
-                                setFunnelSteps([]);
-                                setFunnelSummary({
-                                  totalConversionRate: "0%",
-                                  totalDropoffs: "0",
-                                  totalRevenue: "R$ 0"
-                                });
+                            try {
+                              const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+                              api.setBaseUrl(apiEndpoint);
+                              
+                              // Try to delete from database
+                              try {
+                                await api.deleteFunnel(funnel.id);
+                              } catch (dbError) {
+                                console.warn("Erro ao deletar do banco, usando localStorage:", dbError);
                               }
-                            }
-                            
-                            toast.success("Funil deletado com sucesso!");
-                            
-                            if (wasDefault && updated.length > 0) {
-                              toast.info("O funil padrão foi removido. Defina um novo funil como padrão se desejar.");
+                              
+                              const updated = savedFunnels.filter(f => f.id !== funnel.id);
+                              await saveFunnels(updated);
+                              setSavedFunnels(updated);
+                              
+                              if (selectedFunnelId === funnel.id) {
+                                // Se era o funil padrão, carregar o novo padrão ou o padrão do sistema
+                                const newDefaultFunnel = updated.find((f: any) => f.isDefault);
+                                if (newDefaultFunnel) {
+                                  setSelectedFunnelId(newDefaultFunnel.id);
+                                  setCurrentFunnelName(newDefaultFunnel.name);
+                                } else {
+                                  setSelectedFunnelId(null);
+                                  setCurrentFunnelName("");
+                                  setFunnelSteps([]);
+                                  setFunnelSummary({
+                                    totalConversionRate: "0%",
+                                    totalDropoffs: "0",
+                                    totalRevenue: "R$ 0"
+                                  });
+                                }
+                              }
+                              
+                              toast.success("Funil deletado com sucesso!");
+                              
+                              if (wasDefault && updated.length > 0) {
+                                toast.info("O funil padrão foi removido. Defina um novo funil como padrão se desejar.");
+                              }
+                            } catch (error) {
+                              console.error("Erro ao deletar funil:", error);
+                              toast.error("Erro ao deletar funil");
                             }
                           }
                         }}

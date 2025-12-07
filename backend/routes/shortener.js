@@ -3,17 +3,18 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import { sql, isDatabaseAvailable } from '../lib/db.js';
 
 const router = express.Router();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Path to store shortened URLs
+// Path to store shortened URLs (fallback)
 const DATA_DIR = path.join(__dirname, '../data');
 const SHORT_URLS_FILE = path.join(DATA_DIR, 'short-urls.json');
 
-// Ensure data directory exists
+// Ensure data directory exists (for fallback)
 async function ensureDataDir() {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
@@ -22,7 +23,7 @@ async function ensureDataDir() {
   }
 }
 
-// Load short URLs
+// Load short URLs (fallback - JSON file)
 async function loadShortUrls() {
   try {
     await ensureDataDir();
@@ -33,7 +34,7 @@ async function loadShortUrls() {
   }
 }
 
-// Save short URLs
+// Save short URLs (fallback - JSON file)
 async function saveShortUrls(urls) {
   try {
     await ensureDataDir();
@@ -45,7 +46,6 @@ async function saveShortUrls(urls) {
 
 // Generate short code
 function generateShortCode() {
-  // Generate a 6-character code using random bytes
   return crypto.randomBytes(3).toString('base64url').substring(0, 6).toLowerCase();
 }
 
@@ -53,29 +53,57 @@ function generateShortCode() {
 router.get('/info/:code', async (req, res) => {
   try {
     const { code } = req.params;
-    const shortUrls = await loadShortUrls();
 
-    const shortUrlData = shortUrls[code.toLowerCase()];
+    if (isDatabaseAvailable()) {
+      const result = await sql`
+        SELECT * FROM short_urls
+        WHERE short_code = ${code.toLowerCase()}
+        LIMIT 1
+      `;
 
-    if (!shortUrlData) {
-      return res.status(404).json({
-        error: 'Short URL not found'
+      if (result.length === 0) {
+        return res.status(404).json({
+          error: 'Short URL not found'
+        });
+      }
+
+      const shortUrlData = result[0];
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const shortUrl = `${protocol}://${host}/s/${code}`;
+
+      res.json({
+        shortCode: code,
+        shortUrl,
+        originalUrl: shortUrlData.original_url,
+        clicks: shortUrlData.clicks || 0,
+        createdAt: shortUrlData.created_at.toISOString(),
+        lastClick: shortUrlData.last_click ? shortUrlData.last_click.toISOString() : null
+      });
+    } else {
+      // Fallback to JSON
+      const shortUrls = await loadShortUrls();
+      const shortUrlData = shortUrls[code.toLowerCase()];
+
+      if (!shortUrlData) {
+        return res.status(404).json({
+          error: 'Short URL not found'
+        });
+      }
+
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const shortUrl = `${protocol}://${host}/s/${code}`;
+
+      res.json({
+        shortCode: code,
+        shortUrl,
+        originalUrl: shortUrlData.originalUrl,
+        clicks: shortUrlData.clicks || 0,
+        createdAt: shortUrlData.createdAt,
+        lastClick: shortUrlData.lastClick
       });
     }
-
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const shortUrl = `${protocol}://${host}/s/${code}`;
-
-    res.json({
-      shortCode: code,
-      shortUrl,
-      originalUrl: shortUrlData.originalUrl,
-      clicks: shortUrlData.clicks || 0,
-      createdAt: shortUrlData.createdAt,
-      lastClick: shortUrlData.lastClick
-    });
-
   } catch (error) {
     console.error('Error getting short URL info:', error);
     res.status(500).json({
@@ -87,7 +115,6 @@ router.get('/info/:code', async (req, res) => {
 
 // Create short URL (must come before /:code)
 router.post('/shorten', async (req, res) => {
-  console.log('📝 POST /s/shorten - Request received:', { url: req.body?.url, customCode: req.body?.customCode });
   try {
     const { url, customCode } = req.body;
 
@@ -106,46 +133,129 @@ router.post('/shorten', async (req, res) => {
       });
     }
 
-    const shortUrls = await loadShortUrls();
-    
     let shortCode;
-    if (customCode) {
-      // Check if custom code is available
-      if (shortUrls[customCode]) {
-        return res.status(409).json({
-          error: 'Custom code already exists'
+
+    if (isDatabaseAvailable()) {
+      try {
+        if (customCode) {
+          // Check if custom code exists
+          const existing = await sql`
+            SELECT * FROM short_urls
+            WHERE short_code = ${customCode.toLowerCase()}
+            LIMIT 1
+          `;
+
+          if (existing.length > 0) {
+            return res.status(409).json({
+              error: 'Custom code already exists'
+            });
+          }
+          shortCode = customCode.toLowerCase();
+        } else {
+          // Generate unique code
+          let exists = true;
+          while (exists) {
+            shortCode = generateShortCode();
+            const existing = await sql`
+              SELECT * FROM short_urls
+              WHERE short_code = ${shortCode}
+              LIMIT 1
+            `;
+            exists = existing.length > 0;
+          }
+        }
+
+        // Insert into database
+        await sql`
+          INSERT INTO short_urls (short_code, original_url, clicks, created_at)
+          VALUES (${shortCode}, ${url}, 0, CURRENT_TIMESTAMP)
+        `;
+
+        const protocol = req.protocol;
+        const host = req.get('host');
+        const shortUrl = `${protocol}://${host}/s/${shortCode}`;
+
+        res.json({
+          success: true,
+          shortCode,
+          shortUrl,
+          originalUrl: url
+        });
+      } catch (dbError) {
+        console.error('Erro ao salvar no banco de dados, usando fallback JSON:', dbError);
+        // Fallback to JSON
+        const shortUrls = await loadShortUrls();
+        
+        if (customCode) {
+          if (shortUrls[customCode.toLowerCase()]) {
+            return res.status(409).json({
+              error: 'Custom code already exists'
+            });
+          }
+          shortCode = customCode.toLowerCase();
+        } else {
+          do {
+            shortCode = generateShortCode();
+          } while (shortUrls[shortCode]);
+        }
+
+        shortUrls[shortCode] = {
+          originalUrl: url,
+          createdAt: new Date().toISOString(),
+          clicks: 0,
+          lastClick: null
+        };
+
+        await saveShortUrls(shortUrls);
+
+        const protocol = req.protocol;
+        const host = req.get('host');
+        const shortUrl = `${protocol}://${host}/s/${shortCode}`;
+
+        res.json({
+          success: true,
+          shortCode,
+          shortUrl,
+          originalUrl: url
         });
       }
-      shortCode = customCode.toLowerCase();
     } else {
-      // Generate unique code
-      do {
-        shortCode = generateShortCode();
-      } while (shortUrls[shortCode]);
+      // Use JSON fallback
+      const shortUrls = await loadShortUrls();
+      
+      if (customCode) {
+        if (shortUrls[customCode.toLowerCase()]) {
+          return res.status(409).json({
+            error: 'Custom code already exists'
+          });
+        }
+        shortCode = customCode.toLowerCase();
+      } else {
+        do {
+          shortCode = generateShortCode();
+        } while (shortUrls[shortCode]);
+      }
+
+      shortUrls[shortCode] = {
+        originalUrl: url,
+        createdAt: new Date().toISOString(),
+        clicks: 0,
+        lastClick: null
+      };
+
+      await saveShortUrls(shortUrls);
+
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const shortUrl = `${protocol}://${host}/s/${shortCode}`;
+
+      res.json({
+        success: true,
+        shortCode,
+        shortUrl,
+        originalUrl: url
+      });
     }
-
-    // Save short URL
-    shortUrls[shortCode] = {
-      originalUrl: url,
-      createdAt: new Date().toISOString(),
-      clicks: 0,
-      lastClick: null
-    };
-
-    await saveShortUrls(shortUrls);
-
-    // Get base URL from request
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const shortUrl = `${protocol}://${host}/s/${shortCode}`;
-
-    res.json({
-      success: true,
-      shortCode,
-      shortUrl,
-      originalUrl: url
-    });
-
   } catch (error) {
     console.error('Error shortening URL:', error);
     res.status(500).json({
@@ -167,25 +277,66 @@ router.get('/:code', async (req, res) => {
       });
     }
     
-    const shortUrls = await loadShortUrls();
+    if (isDatabaseAvailable()) {
+      try {
+        const result = await sql`
+          SELECT * FROM short_urls
+          WHERE short_code = ${code.toLowerCase()}
+          LIMIT 1
+        `;
 
-    const shortUrlData = shortUrls[code.toLowerCase()];
+        if (result.length === 0) {
+          return res.status(404).json({
+            error: 'Short URL not found'
+          });
+        }
 
-    if (!shortUrlData) {
-      return res.status(404).json({
-        error: 'Short URL not found'
-      });
+        const shortUrlData = result[0];
+
+        // Update click count and last click
+        await sql`
+          UPDATE short_urls
+          SET clicks = clicks + 1,
+              last_click = CURRENT_TIMESTAMP
+          WHERE short_code = ${code.toLowerCase()}
+        `;
+
+        res.redirect(shortUrlData.original_url);
+      } catch (dbError) {
+        console.error('Erro ao acessar banco de dados, usando fallback JSON:', dbError);
+        // Fallback to JSON
+        const shortUrls = await loadShortUrls();
+        const shortUrlData = shortUrls[code.toLowerCase()];
+
+        if (!shortUrlData) {
+          return res.status(404).json({
+            error: 'Short URL not found'
+          });
+        }
+
+        shortUrlData.clicks = (shortUrlData.clicks || 0) + 1;
+        shortUrlData.lastClick = new Date().toISOString();
+        await saveShortUrls(shortUrls);
+
+        res.redirect(shortUrlData.originalUrl);
+      }
+    } else {
+      // Use JSON fallback
+      const shortUrls = await loadShortUrls();
+      const shortUrlData = shortUrls[code.toLowerCase()];
+
+      if (!shortUrlData) {
+        return res.status(404).json({
+          error: 'Short URL not found'
+        });
+      }
+
+      shortUrlData.clicks = (shortUrlData.clicks || 0) + 1;
+      shortUrlData.lastClick = new Date().toISOString();
+      await saveShortUrls(shortUrls);
+
+      res.redirect(shortUrlData.originalUrl);
     }
-
-    // Increment click count
-    shortUrlData.clicks = (shortUrlData.clicks || 0) + 1;
-    shortUrlData.lastClick = new Date().toISOString();
-
-    await saveShortUrls(shortUrls);
-
-    // Redirect to original URL
-    res.redirect(shortUrlData.originalUrl);
-
   } catch (error) {
     console.error('Error redirecting short URL:', error);
     res.status(500).json({
@@ -196,4 +347,3 @@ router.get('/:code', async (req, res) => {
 });
 
 export default router;
-

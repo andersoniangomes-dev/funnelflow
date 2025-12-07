@@ -109,7 +109,7 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
     setSelectedSteps(reorderedSteps);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!funnelName.trim()) {
       toast.error("Por favor, insira um nome para o funil");
       return;
@@ -120,27 +120,46 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
       return;
     }
 
-    // Load saved funnels
-    const savedFunnels = loadSavedFunnels();
-    
-    const newFunnel = {
-      id: Date.now(),
-      name: funnelName.trim(),
-      steps: selectedSteps.map(s => s.eventName),
-      createdAt: new Date().toISOString(),
-      isDefault: false
-    };
+    try {
+      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+      api.setBaseUrl(apiEndpoint);
 
-    savedFunnels.push(newFunnel);
-    saveFunnels(savedFunnels);
+      const steps = selectedSteps.map(s => s.eventName);
+      
+      // Try to save to database
+      try {
+        await api.saveFunnel({
+          name: funnelName.trim(),
+          steps,
+          isDefault: false
+        });
+        toast.success("Funil criado com sucesso no banco de dados!");
+      } catch (dbError) {
+        // Fallback to localStorage
+        console.warn("Erro ao salvar no banco, usando localStorage:", dbError);
+        const savedFunnels = loadSavedFunnels();
+        const newFunnel = {
+          id: Date.now(),
+          name: funnelName.trim(),
+          steps,
+          createdAt: new Date().toISOString(),
+          isDefault: false
+        };
+        savedFunnels.push(newFunnel);
+        saveFunnels(savedFunnels);
+        toast.success("Funil criado com sucesso (salvo localmente)!");
+      }
 
-    toast.success("Funil criado com sucesso!");
-    onFunnelCreated();
-    onOpenChange(false);
-    
-    // Reset form
-    setFunnelName("");
-    setSelectedSteps([]);
+      onFunnelCreated();
+      onOpenChange(false);
+      
+      // Reset form
+      setFunnelName("");
+      setSelectedSteps([]);
+    } catch (error) {
+      console.error("Erro ao criar funil:", error);
+      toast.error("Erro ao criar funil");
+    }
   };
 
   const filteredEvents = availableEvents.filter(event =>
@@ -289,23 +308,65 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
   );
 }
 
-// Helper functions
-function loadSavedFunnels() {
+// Helper functions with database support
+export async function loadSavedFunnels() {
   try {
-    const saved = localStorage.getItem("saved_funnels");
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
+    const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+    api.setBaseUrl(apiEndpoint);
+    
+    try {
+      const response = await api.getSavedFunnels();
+      return response.funnels || [];
+    } catch (dbError) {
+      // Fallback to localStorage
+      console.warn("Erro ao carregar do banco, usando localStorage:", dbError);
+      try {
+        const saved = localStorage.getItem("saved_funnels");
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    }
+  } catch (error) {
+    console.error("Erro ao carregar funis:", error);
+    try {
+      const saved = localStorage.getItem("saved_funnels");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   }
 }
 
-function saveFunnels(funnels: any[]) {
+export async function saveFunnels(funnels: any[]) {
   try {
+    const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+    api.setBaseUrl(apiEndpoint);
+
+    // Try to save each funnel to database
+    for (const funnel of funnels) {
+      try {
+        await api.saveFunnel({
+          id: funnel.id,
+          name: funnel.name,
+          steps: funnel.steps || [],
+          isDefault: funnel.isDefault || false
+        });
+      } catch (dbError) {
+        console.warn(`Erro ao salvar funil ${funnel.id} no banco:`, dbError);
+      }
+    }
+
+    // Also save to localStorage as backup
     localStorage.setItem("saved_funnels", JSON.stringify(funnels));
   } catch (error) {
     console.error("Erro ao salvar funis:", error);
+    // Fallback to localStorage only
+    try {
+      localStorage.setItem("saved_funnels", JSON.stringify(funnels));
+    } catch (localError) {
+      console.error("Erro ao salvar no localStorage:", localError);
+    }
   }
 }
-
-export { loadSavedFunnels, saveFunnels };
 

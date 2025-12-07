@@ -41,13 +41,13 @@ const Events = () => {
       
       // Check if response has events array
       if (response && response.events && Array.isArray(response.events)) {
-        const events = response.events.map((event: any) => ({
-          name: event.name,
+      const events = response.events.map((event: any) => ({
+        name: event.name,
           count: event.count || 0,
           users: event.users || 0,
-          status: event.status || "ativo"
-        }));
-        setEventsData(events);
+        status: event.status || "ativo"
+      }));
+      setEventsData(events);
       } else {
         // If no events in response, set empty array
         setEventsData([]);
@@ -62,7 +62,7 @@ const Events = () => {
       if (error?.status === 503 || error?.response?.error === 'GA4 not configured') {
         toast.error("GA4 não está configurado. Configure nas Configurações.");
       } else {
-        toast.error("Não foi possível carregar eventos do GA4.");
+      toast.error("Não foi possível carregar eventos do GA4.");
       }
       
       // Set empty data on error
@@ -96,13 +96,13 @@ const Events = () => {
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
-            <DateRangePicker 
-              onDateChange={(start, end) => {
+          <DateRangePicker 
+            onDateChange={(start, end) => {
                 setStartDate(start);
                 setEndDate(end);
                 // fetchEvents will be called automatically by useEffect when dates change
-              }}
-            />
+            }}
+          />
           </div>
         </div>
 

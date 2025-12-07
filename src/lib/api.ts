@@ -176,6 +176,53 @@ class ApiClient {
     }>(`/s/info/${code}`);
   }
 
+  // Saved Funnels API
+  async getSavedFunnels() {
+    return this.request<{ funnels: any[] }>('/api/funnels');
+  }
+
+  async saveFunnel(funnel: { id?: number; name: string; steps: string[]; isDefault?: boolean }) {
+    return this.request<{ success: boolean; id: number }>('/api/funnels', {
+      method: 'POST',
+      body: JSON.stringify(funnel)
+    });
+  }
+
+  async deleteFunnel(id: number) {
+    return this.request<{ success: boolean }>(`/api/funnels/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Saved UTMs API
+  async getSavedUTMs() {
+    return this.request<{ utms: any[] }>('/api/utms');
+  }
+
+  async saveUTM(utm: {
+    id?: string;
+    name: string;
+    url: string;
+    trackingUrl?: string;
+    shortUrl?: string;
+    source: string;
+    medium: string;
+    campaign: string;
+    content?: string;
+    term?: string;
+  }) {
+    return this.request<{ success: boolean; id: string }>('/api/utms', {
+      method: 'POST',
+      body: JSON.stringify(utm)
+    });
+  }
+
+  async deleteUTM(id: string) {
+    return this.request<{ success: boolean }>(`/api/utms/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
   setBaseUrl(url: string) {
     this.baseUrl = url;
   }
