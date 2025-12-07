@@ -690,6 +690,37 @@ const UTMBuilder = () => {
     toast.success("UTM deletada com sucesso!");
   };
 
+  const handleResetUTMClicks = async (utmId: number) => {
+    const utmIdString = String(utmId);
+    const stats = utmStats[utmIdString] || { totalClicks: 0 };
+    
+    if (stats.totalClicks === 0) {
+      toast.info("Esta UTM não possui cliques para zerar.");
+      return;
+    }
+
+    if (!confirm(`Tem certeza que deseja zerar os cliques desta UTM?\n\nIsso vai remover ${stats.totalClicks} cliques registrados. Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
+      api.setBaseUrl(apiEndpoint);
+      
+      const response = await api.deleteUTMClicks(utmIdString);
+      
+      toast.success(response.message || `Cliques zerados com sucesso!`);
+      
+      // Reload stats to update UI
+      setTimeout(() => {
+        loadStats();
+      }, 500);
+    } catch (error) {
+      console.error("❌ Erro ao zerar cliques da UTM:", error);
+      toast.error("Erro ao zerar cliques. Tente novamente.");
+    }
+  };
+
   const filteredUTMs = savedUTMs.filter(utm => {
     const searchLower = searchQuery.toLowerCase();
     const nameMatch = utm.name?.toLowerCase().includes(searchLower) || false;
