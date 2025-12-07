@@ -53,29 +53,44 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
   const loadAvailableEvents = async () => {
     setIsLoadingEvents(true);
     try {
+      console.log("🔍 Carregando eventos para criar funil...");
+      
       // Use same date range as Events page (30 days ago to today)
       const response = await api.getEvents("30daysAgo", "today");
       
+      console.log("📥 Resposta da API:", response);
+      
       // Check if response has events array
       if (response && response.events && Array.isArray(response.events)) {
-        setAvailableEvents(
-          response.events.map((e: any) => ({
-            name: e.name,
-            count: e.count || 0
-          }))
-        );
+        console.log(`✅ Encontrados ${response.events.length} eventos`);
+        const mappedEvents = response.events.map((e: any) => ({
+          name: e.name,
+          count: e.count || 0
+        }));
+        console.log("📋 Eventos mapeados:", mappedEvents);
+        setAvailableEvents(mappedEvents);
       } else {
+        console.warn("⚠️ Resposta não tem eventos ou não é array:", response);
         // If no events, set empty array
         setAvailableEvents([]);
         if (response && response.error) {
           toast.error(response.error || "Erro ao carregar eventos");
-        } else if (!response.events || response.events.length === 0) {
+        } else if (response && (!response.events || response.events.length === 0)) {
           // No error but no events - this is ok, just show empty list
+          console.log("ℹ️ Nenhum evento encontrado (não é erro)");
+          setAvailableEvents([]);
+        } else {
+          console.warn("⚠️ Formato de resposta inesperado:", response);
           setAvailableEvents([]);
         }
       }
     } catch (error: any) {
-      console.error("Erro ao carregar eventos:", error);
+      console.error("❌ Erro ao carregar eventos:", error);
+      console.error("❌ Detalhes do erro:", {
+        message: error?.message,
+        status: error?.status,
+        response: error?.response
+      });
       
       // Check if it's a configuration error
       if (error?.status === 503 || error?.response?.error === 'GA4 not configured') {
@@ -288,9 +303,13 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
                     <div className="p-4 text-center text-sm text-muted-foreground">
                       Carregando eventos...
                     </div>
+                  ) : availableEvents.length === 0 ? (
+                    <CommandEmpty>
+                      Nenhum evento disponível. Verifique se o GA4 está configurado e se há eventos no período selecionado.
+                    </CommandEmpty>
                   ) : filteredEvents.length === 0 ? (
                     <CommandEmpty>
-                      {searchQuery ? "Nenhum evento encontrado" : "Nenhum evento disponível"}
+                      Nenhum evento encontrado para "{searchQuery}"
                     </CommandEmpty>
                   ) : (
                     <CommandGroup>
