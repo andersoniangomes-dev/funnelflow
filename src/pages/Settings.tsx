@@ -3,23 +3,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { CheckCircle, AlertCircle, RefreshCw, Upload, FileText } from "lucide-react";
+import { CheckCircle, AlertCircle, RefreshCw, Upload, FileText, Database, Server, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 
 const Settings = () => {
+  // Get default API URL from environment or use Render URL
+  const getDefaultApiUrl = () => {
+    return import.meta.env.VITE_API_URL || 'https://funnelflow-backend.onrender.com';
+  };
+
   const [apiEndpoint, setApiEndpoint] = useState(() => {
-    return localStorage.getItem("api_endpoint") || "http://localhost:3000";
+    return localStorage.getItem("api_endpoint") || getDefaultApiUrl();
   });
   const [propertyId, setPropertyId] = useState("");
   const [serviceAccountJson, setServiceAccountJson] = useState("");
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [funnelTracking, setFunnelTracking] = useState(true);
-  const [utmLogging, setUtmLogging] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "testing">("disconnected");
+  const [healthData, setHealthData] = useState<any>(null);
+  const [isEnvVar, setIsEnvVar] = useState(false);
+
+  // Check if API URL comes from environment variable
+  useEffect(() => {
+    const envUrl = import.meta.env.VITE_API_URL;
+    setIsEnvVar(!!envUrl && !localStorage.getItem("api_endpoint"));
+  }, []);
 
   // Update API base URL when endpoint changes
   useEffect(() => {
@@ -31,6 +41,7 @@ const Settings = () => {
   // Load configuration on mount
   useEffect(() => {
     loadConfiguration();
+    testConnection();
   }, [apiEndpoint]);
 
   const loadConfiguration = async () => {
@@ -74,7 +85,6 @@ const Settings = () => {
 
   const testConnection = async () => {
     setConnectionStatus("testing");
-    toast.info("Testando conexão com a API...");
     
     try {
       // Update API base URL
@@ -82,18 +92,16 @@ const Settings = () => {
       
       // Test health endpoint
       const response = await api.health();
+      setHealthData(response);
       
       if (response.status === "ok" && response.ga4 === "connected") {
-    setConnectionStatus("connected");
-        toast.success("Conexão com a API realizada com sucesso! GA4 conectado.");
+        setConnectionStatus("connected");
       } else {
         setConnectionStatus("disconnected");
-        toast.error(response.message || "Falha na conexão com GA4");
       }
     } catch (error) {
       setConnectionStatus("disconnected");
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      toast.error(`Erro ao conectar: ${errorMessage}`);
+      setHealthData(null);
     }
   };
 
@@ -142,14 +150,35 @@ const Settings = () => {
     }
   };
 
-  const handleSave = () => {
-    // Save API endpoint to localStorage
-    localStorage.setItem("api_endpoint", apiEndpoint);
+  const handleSaveEndpoint = () => {
+    // Only save if not from environment variable
+    if (!isEnvVar) {
+      localStorage.setItem("api_endpoint", apiEndpoint);
+    }
     
     // Update API base URL
     api.setBaseUrl(apiEndpoint);
     
-    toast.success("Configurações salvas com sucesso!");
+    toast.success("URL do endpoint atualizada!");
+    testConnection();
+  };
+
+  const handleClearCache = () => {
+    if (confirm("Tem certeza que deseja limpar o cache local? Isso não afetará os dados salvos no banco de dados.")) {
+      // Only clear local cache, not database data
+      localStorage.removeItem("api_endpoint");
+      localStorage.removeItem("saved_funnels"); // Local fallback only
+      
+      // Reset to default
+      const defaultUrl = getDefaultApiUrl();
+      setApiEndpoint(defaultUrl);
+      setIsEnvVar(!!import.meta.env.VITE_API_URL);
+      
+      toast.success("Cache local limpo com sucesso!");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
   };
 
   return (
@@ -161,25 +190,118 @@ const Settings = () => {
           <p className="text-muted-foreground mt-1">Configure sua integração de analytics e preferências</p>
         </div>
 
+        {/* System Status */}
+        <div className="glass-card p-6 animate-fade-in">
+          <h3 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
+            <Info className="h-5 w-5" />
+            Status do Sistema
+          </h3>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+              <div className="flex items-center gap-3">
+                <Server className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Backend API</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {apiEndpoint}
+                    {isEnvVar && (
+                      <span className="ml-2 text-xs text-primary">(Variável de ambiente)</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {connectionStatus === "connected" && (
+                  <CheckCircle className="h-5 w-5 text-success" />
+                )}
+                {connectionStatus === "disconnected" && (
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                )}
+                {connectionStatus === "testing" && (
+                  <RefreshCw className="h-5 w-5 text-primary animate-spin" />
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={testConnection}
+                  disabled={connectionStatus === "testing"}
+                >
+                  {connectionStatus === "testing" ? "Testando..." : "Testar"}
+                </Button>
+              </div>
+            </div>
+
+            {healthData && (
+              <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                <div className="flex items-center gap-3">
+                  <Database className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Banco de Dados</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {healthData.ga4 === "connected" ? "Conectado ao Neon PostgreSQL" : "Não configurado"}
+                    </p>
+                  </div>
+                </div>
+                {healthData.ga4 === "connected" && (
+                  <CheckCircle className="h-5 w-5 text-success" />
+                )}
+              </div>
+            )}
+
+            {healthData && healthData.propertyId && (
+              <div className="p-4 rounded-lg border border-border bg-muted/50">
+                <p className="text-sm font-medium text-foreground">Google Analytics 4</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Property ID: {healthData.propertyId}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Status: {healthData.ga4 === "connected" ? "Conectado" : "Não conectado"}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* API Endpoint Configuration */}
+        <div className="glass-card p-6 animate-fade-in">
+          <h3 className="text-lg font-semibold text-foreground mb-6">Configuração da API</h3>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="apiEndpoint">URL do Endpoint da API</Label>
+              <Input
+                id="apiEndpoint"
+                placeholder={getDefaultApiUrl()}
+                value={apiEndpoint}
+                onChange={(e) => setApiEndpoint(e.target.value)}
+                className="mt-1.5 max-w-md"
+                disabled={isEnvVar}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {isEnvVar 
+                  ? "Configurado via variável de ambiente (VITE_API_URL). Não pode ser alterado aqui."
+                  : "URL do backend (ex: http://localhost:3000 ou https://funnelflow-backend.onrender.com)"}
+              </p>
+            </div>
+
+            {!isEnvVar && (
+              <Button
+                variant="outline"
+                onClick={handleSaveEndpoint}
+                className="gap-2"
+              >
+                Salvar URL do Endpoint
+              </Button>
+            )}
+          </div>
+        </div>
+
         {/* GA4 Configuration */}
         <div className="glass-card p-6 animate-fade-in">
           <h3 className="text-lg font-semibold text-foreground mb-6">Configuração do GA4</h3>
           
           <div className="space-y-6">
-            <div>
-              <Label htmlFor="apiEndpoint">URL do Endpoint da API</Label>
-              <Input
-                id="apiEndpoint"
-                placeholder="http://localhost:3000"
-                value={apiEndpoint}
-                onChange={(e) => setApiEndpoint(e.target.value)}
-                className="mt-1.5 max-w-md"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                URL do backend (ex: http://localhost:3000 ou https://api.seudominio.com)
-              </p>
-            </div>
-
             <div>
               <Label htmlFor="propertyId">ID da Propriedade GA4 *</Label>
               <Input
@@ -199,7 +321,7 @@ const Settings = () => {
               <Label htmlFor="serviceAccount">Service Account JSON *</Label>
               <div className="mt-1.5 space-y-2">
                 <div className="flex items-center gap-2">
-              <Input
+                  <Input
                     type="file"
                     accept=".json"
                     onChange={handleFileUpload}
@@ -226,7 +348,7 @@ const Settings = () => {
                   onChange={(e) => setServiceAccountJson(e.target.value)}
                   className="min-h-[200px] font-mono text-xs"
                   disabled={isLoadingConfig || serviceAccountJson.includes("***")}
-              />
+                />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Faça upload ou cole o conteúdo do arquivo JSON do Service Account do Google Cloud.
@@ -270,78 +392,6 @@ const Settings = () => {
                 <span className="text-sm text-muted-foreground">Carregando configuração...</span>
               )}
             </div>
-
-            {/* Connection Status */}
-            <div className="flex items-center justify-between p-4 rounded-lg bg-muted border border-border max-w-md">
-              <div className="flex items-center gap-3">
-                {connectionStatus === "connected" && (
-                  <CheckCircle className="h-5 w-5 text-success" />
-                )}
-                {connectionStatus === "disconnected" && (
-                  <AlertCircle className="h-5 w-5 text-destructive" />
-                )}
-                {connectionStatus === "testing" && (
-                  <RefreshCw className="h-5 w-5 text-primary animate-spin" />
-                )}
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {connectionStatus === "connected" && "Conectado"}
-                    {connectionStatus === "disconnected" && "Desconectado"}
-                    {connectionStatus === "testing" && "Testando..."}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {connectionStatus === "connected" && "A API está respondendo corretamente"}
-                    {connectionStatus === "disconnected" && "Não foi possível conectar à API"}
-                    {connectionStatus === "testing" && "Verificando conexão"}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={testConnection}
-                disabled={connectionStatus === "testing"}
-              >
-                Testar
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Feature Toggles */}
-        <div className="glass-card p-6 animate-fade-in">
-          <h3 className="text-lg font-semibold text-foreground mb-6">Funcionalidades</h3>
-          
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="funnelTracking" className="text-base">Rastreamento de Funis</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Habilitar visualização e análise de funis personalizados
-                </p>
-              </div>
-              <Switch
-                id="funnelTracking"
-                checked={funnelTracking}
-                onCheckedChange={setFunnelTracking}
-              />
-            </div>
-
-            <div className="border-t border-border" />
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="utmLogging" className="text-base">Registro de UTMs</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Registrar e salvar automaticamente todos os links UTM criados
-                </p>
-              </div>
-              <Switch
-                id="utmLogging"
-                checked={utmLogging}
-                onCheckedChange={setUtmLogging}
-              />
-            </div>
           </div>
         </div>
 
@@ -362,18 +412,12 @@ const Settings = () => {
                 size="sm"
                 onClick={async () => {
                   try {
-                    const apiEndpoint = localStorage.getItem("api_endpoint");
-                    if (!apiEndpoint) {
-                      toast.error("Configure a URL da API primeiro");
-                      return;
-                    }
                     api.setBaseUrl(apiEndpoint);
                     
                     // Fetch all data
-                    const [kpis, events, funnel, traffic] = await Promise.all([
+                    const [kpis, events, traffic] = await Promise.all([
                       api.getKPIs().catch(() => null),
                       api.getEvents().catch(() => null),
-                      null, // Funnel data removed - use saved funnels instead
                       api.getTrafficSources().catch(() => null)
                     ]);
 
@@ -422,37 +466,21 @@ const Settings = () => {
 
             <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/20 bg-destructive/5">
               <div>
-                <p className="text-sm font-medium text-foreground">Limpar Cache</p>
+                <p className="text-sm font-medium text-foreground">Limpar Cache Local</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Limpar todos os dados de analytics em cache
+                  Limpar apenas dados em cache local. Dados no banco de dados não serão afetados.
                 </p>
               </div>
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="border-destructive/50 text-destructive hover:bg-destructive/10"
-                onClick={() => {
-                  if (confirm("Tem certeza que deseja limpar o cache? Isso não afetará os dados do GA4.")) {
-                    localStorage.removeItem("api_endpoint");
-                    localStorage.removeItem("ga4_property_id");
-                    localStorage.removeItem("saved_utms");
-                    toast.success("Cache limpo com sucesso!");
-                    // Reload page
-                    setTimeout(() => window.location.reload(), 1000);
-                  }
-                }}
+                onClick={handleClearCache}
               >
                 Limpar
               </Button>
             </div>
           </div>
-        </div>
-
-        {/* Save Button - For other settings */}
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={handleSave}>
-            Salvar Outras Configurações
-          </Button>
         </div>
       </div>
     </AppLayout>
