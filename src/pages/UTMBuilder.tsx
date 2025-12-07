@@ -604,13 +604,11 @@ const UTMBuilder = () => {
         createdAt: new Date().toLocaleDateString("pt-BR")
       };
 
-      const updatedUTMs = [...savedUTMs, newUTM];
-      setSavedUTMs(updatedUTMs);
-      
-      // Don't call saveUTMs here - the UTM was already saved to database above
-      // Just update localStorage as backup
-      localStorage.setItem("saved_utms", JSON.stringify(updatedUTMs));
-      console.log("✅ UTM salvo no localStorage como backup");
+      // Reload UTMs from database to get the correct data
+      console.log("🔄 Recarregando UTMs do banco para garantir sincronização...");
+      const reloadedUTMs = await loadSavedUTMs();
+      setSavedUTMs(reloadedUTMs);
+      console.log("✅ UTMs recarregados do banco:", reloadedUTMs.length);
       
       toast.success("UTM salva com sucesso!");
       setUtmName("");
