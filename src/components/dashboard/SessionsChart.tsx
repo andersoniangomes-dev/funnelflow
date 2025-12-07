@@ -1,22 +1,23 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-const data = [
-  { date: "1 Nov", sessoes: 4200, conversoes: 186 },
-  { date: "5 Nov", sessoes: 5100, conversoes: 245 },
-  { date: "10 Nov", sessoes: 4800, conversoes: 201 },
-  { date: "15 Nov", sessoes: 6200, conversoes: 312 },
-  { date: "20 Nov", sessoes: 5800, conversoes: 289 },
-  { date: "25 Nov", sessoes: 7100, conversoes: 378 },
-  { date: "30 Nov", sessoes: 6500, conversoes: 342 },
-];
-
 export function SessionsChart() {
+  // Empty data - will be populated when GA4 data is available
+  const data: Array<{ date: string; sessoes: number; conversoes: number }> = [];
+
   return (
     <div className="glass-card p-6 animate-fade-in">
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-foreground">Sessões vs Conversões</h3>
         <p className="text-sm text-muted-foreground">Desempenho dos últimos 30 dias</p>
       </div>
+      {data.length === 0 ? (
+        <div className="h-[300px] flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">Nenhum dado disponível</p>
+            <p className="text-xs text-muted-foreground mt-2">Configure o GA4 para ver os dados do gráfico</p>
+          </div>
+        </div>
+      ) : (
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -64,6 +65,7 @@ export function SessionsChart() {
           </LineChart>
         </ResponsiveContainer>
       </div>
+      )}
     </div>
   );
 }

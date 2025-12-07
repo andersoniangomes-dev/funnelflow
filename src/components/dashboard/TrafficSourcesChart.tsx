@@ -1,20 +1,23 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
-const data = [
-  { name: "Google / CPC", value: 35, color: "hsl(262, 83%, 58%)" },
-  { name: "Instagram / Story", value: 25, color: "hsl(280, 87%, 65%)" },
-  { name: "Facebook / Feed", value: 20, color: "hsl(340, 82%, 52%)" },
-  { name: "TikTok / Vídeo", value: 12, color: "hsl(38, 92%, 50%)" },
-  { name: "Direto", value: 8, color: "hsl(142, 76%, 36%)" },
-];
-
 export function TrafficSourcesChart() {
+  // Empty data - will be populated when GA4 data is available
+  const data: Array<{ name: string; value: number; color: string }> = [];
+
   return (
     <div className="glass-card p-6 animate-fade-in">
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-foreground">Tráfego por Fonte / Mídia</h3>
         <p className="text-sm text-muted-foreground">Distribuição das fontes de tráfego</p>
       </div>
+      {data.length === 0 ? (
+        <div className="h-[300px] flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">Nenhum dado disponível</p>
+            <p className="text-xs text-muted-foreground mt-2">Configure o GA4 para ver os dados do gráfico</p>
+          </div>
+        </div>
+      ) : (
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -47,6 +50,7 @@ export function TrafficSourcesChart() {
           </PieChart>
         </ResponsiveContainer>
       </div>
+      )}
     </div>
   );
 }

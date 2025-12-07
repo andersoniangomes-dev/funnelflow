@@ -6,22 +6,6 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useApi } from "@/hooks/useApi";
 
-const defaultSourceData = [
-  { source: "Google", sessions: 18420, conversions: 892, revenue: 128450 },
-  { source: "Instagram", sessions: 12840, conversions: 456, revenue: 67230 },
-  { source: "Facebook", sessions: 8920, conversions: 312, revenue: 45890 },
-  { source: "TikTok", sessions: 5680, conversions: 187, revenue: 27650 },
-  { source: "Direto", sessions: 4230, conversions: 98, revenue: 14580 },
-  { source: "LinkedIn", sessions: 1890, conversions: 45, revenue: 12340 },
-];
-
-const defaultCampaignData = [
-  { name: "Black Friday 2024", sessions: 15420, conversions: 723, ctr: "4,7%", roas: 5.2 },
-  { name: "Promoção de Verão", sessions: 8920, conversions: 312, ctr: "3,5%", roas: 3.8 },
-  { name: "Lançamento Produto", sessions: 6540, conversions: 245, ctr: "3,7%", roas: 4.1 },
-  { name: "Reconhecimento Marca", sessions: 12340, conversions: 156, ctr: "1,3%", roas: 1.9 },
-  { name: "Remarketing Q4", sessions: 4560, conversions: 289, ctr: "6,3%", roas: 7.2 },
-];
 
 const platformColors = [
   { name: "Google Ads", value: 35, color: "hsl(262, 83%, 58%)" },
@@ -32,21 +16,40 @@ const platformColors = [
 ];
 
 const TrafficSources = () => {
-  const [sourceData, setSourceData] = useState(defaultSourceData);
-  const [campaignData, setCampaignData] = useState(defaultCampaignData);
+  const [sourceData, setSourceData] = useState<Array<{
+    source: string;
+    sessions: number;
+    conversions: number;
+    revenue: number;
+  }>>([]);
+  const [campaignData, setCampaignData] = useState<Array<{
+    name: string;
+    sessions: number;
+    conversions: number;
+    ctr: string;
+    roas: number | string;
+  }>>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [startDate, setStartDate] = useState("30daysAgo");
+  const [endDate, setEndDate] = useState("today");
+  const [hasError, setHasError] = useState(false);
 
   useApi();
 
   useEffect(() => {
     fetchTrafficData();
-  }, []);
+  }, [startDate, endDate]);
 
   const fetchTrafficData = async () => {
     setIsLoading(true);
+    setHasError(false);
     try {
+      // Garantir que a API está configurada com a URL correta
+      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+      api.setBaseUrl(apiEndpoint);
+
       // Fetch sources
-      const sourcesResponse = await api.getTrafficSources();
+      const sourcesResponse = await api.getTrafficSources(startDate, endDate);
       if (sourcesResponse.sources && sourcesResponse.sources.length > 0) {
         const formattedSources = sourcesResponse.sources.map((s: any) => ({
           source: s.source || "unknown",
@@ -58,7 +61,7 @@ const TrafficSources = () => {
       }
 
       // Fetch campaigns
-      const campaignsResponse = await api.getCampaigns();
+      const campaignsResponse = await api.getCampaigns(startDate, endDate);
       if (campaignsResponse.campaigns && campaignsResponse.campaigns.length > 0) {
         const formattedCampaigns = campaignsResponse.campaigns.map((c: any) => ({
           name: c.name || "unknown",
@@ -71,8 +74,24 @@ const TrafficSources = () => {
       }
     } catch (error) {
       console.error("Erro ao buscar fontes de tráfego:", error);
-      toast.error("Não foi possível carregar dados de tráfego do GA4.");
-      // Keep default data on error
+      
+      // Só mostrar toast se não tiver mostrado erro antes (evitar loop)
+      if (!hasError) {
+        setHasError(true);
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+        
+        if (errorMessage.includes("GA4 not configured") || errorMessage.includes("503")) {
+          toast.error("GA4 não está configurado. Configure nas Configurações.");
+        } else if (errorMessage.includes("timeout")) {
+          toast.error("A requisição demorou muito. Tente novamente.");
+        } else {
+          toast.error("Não foi possível carregar dados de tráfego do GA4.");
+        }
+      }
+      
+      // Set empty data on error
+      setSourceData([]);
+      setCampaignData([]);
     } finally {
       setIsLoading(false);
     }
@@ -87,13 +106,28 @@ const TrafficSources = () => {
             <h1 className="text-2xl font-bold text-foreground">Fontes de Tráfego</h1>
             <p className="text-muted-foreground mt-1">Analise sua aquisição de tráfego e desempenho de campanhas</p>
           </div>
-          <DateRangePicker />
+          <DateRangePicker 
+            onDateChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+              // fetchTrafficData será chamado automaticamente pelo useEffect quando startDate/endDate mudarem
+            }}
+          />
         </div>
 
         {/* Source Performance Chart */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="glass-card p-6 animate-fade-in">
             <h3 className="text-lg font-semibold text-foreground mb-6">Sessões por Fonte</h3>
+            {isLoading ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Carregando dados...</p>
+              </div>
+            ) : sourceData.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Nenhum dado de fonte disponível</p>
+              </div>
+            ) : (
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sourceData} layout="vertical" margin={{ left: 20 }}>
@@ -112,10 +146,20 @@ const TrafficSources = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            )}
           </div>
 
           <div className="glass-card p-6 animate-fade-in">
             <h3 className="text-lg font-semibold text-foreground mb-6">Distribuição por Plataforma</h3>
+            {isLoading ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Carregando dados...</p>
+              </div>
+            ) : sourceData.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Nenhum dado disponível</p>
+              </div>
+            ) : (
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -144,6 +188,8 @@ const TrafficSources = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
+            )}
+            {sourceData.length > 0 && (
             <div className="flex flex-wrap justify-center gap-4 mt-4">
               {platformColors.map((platform) => (
                 <div key={platform.name} className="flex items-center gap-2">
@@ -152,12 +198,22 @@ const TrafficSources = () => {
                 </div>
               ))}
             </div>
+            )}
           </div>
         </div>
 
         {/* Source Details Table */}
         <div className="glass-card p-6 animate-fade-in">
           <h3 className="text-lg font-semibold text-foreground mb-4">Detalhes de Desempenho por Fonte</h3>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">Carregando dados...</p>
+            </div>
+          ) : sourceData.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">Nenhum dado de fonte disponível</p>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -176,7 +232,10 @@ const TrafficSources = () => {
                     <td className="py-3 px-4 text-sm text-right text-foreground">{source.sessions.toLocaleString("pt-BR")}</td>
                     <td className="py-3 px-4 text-sm text-right text-foreground">{source.conversions.toLocaleString("pt-BR")}</td>
                     <td className="py-3 px-4 text-sm text-right text-foreground">
-                      {((source.conversions / source.sessions) * 100).toFixed(2).replace(".", ",")}%
+                      {source.sessions > 0 
+                        ? ((source.conversions / source.sessions) * 100).toFixed(2).replace(".", ",")
+                        : "0,00"
+                      }%
                     </td>
                     <td className="py-3 px-4 text-sm text-right text-success font-medium">
                       R$ {source.revenue.toLocaleString("pt-BR")}
@@ -186,11 +245,21 @@ const TrafficSources = () => {
               </tbody>
             </table>
           </div>
+          )}
         </div>
 
         {/* Campaign Performance */}
         <div className="glass-card p-6 animate-fade-in">
           <h3 className="text-lg font-semibold text-foreground mb-4">Desempenho de Campanhas</h3>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">Carregando dados...</p>
+            </div>
+          ) : campaignData.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">Nenhum dado de campanha disponível</p>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {campaignData.map((campaign) => (
               <div key={campaign.name} className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors">
@@ -218,6 +287,7 @@ const TrafficSources = () => {
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
     </AppLayout>

@@ -1,7 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
 import { Input } from "@/components/ui/input";
-import { Search, AlertCircle, CheckCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -24,31 +25,48 @@ const Events = () => {
     status: string;
   }>>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [startDate, setStartDate] = useState("30daysAgo");
+  const [endDate, setEndDate] = useState("today");
 
   useApi();
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [startDate, endDate]);
 
   const fetchEvents = async () => {
     setIsLoading(true);
     try {
-      const response = await api.getEvents();
-      const events = response.events.map((event: any) => ({
-        name: event.name,
-        count: event.count,
-        users: event.users,
-        status: event.status || "ativo"
-      }));
-      setEventsData(events);
-    } catch (error) {
+      const response = await api.getEvents(startDate, endDate);
+      
+      // Check if response has events array
+      if (response && response.events && Array.isArray(response.events)) {
+        const events = response.events.map((event: any) => ({
+          name: event.name,
+          count: event.count || 0,
+          users: event.users || 0,
+          status: event.status || "ativo"
+        }));
+        setEventsData(events);
+      } else {
+        // If no events in response, set empty array
+        setEventsData([]);
+        if (response && response.error) {
+          toast.error(response.error || "Erro ao buscar eventos");
+        }
+      }
+    } catch (error: any) {
       console.error("Erro ao buscar eventos:", error);
-      toast.error("Não foi possível carregar eventos do GA4.");
-      // Fallback data
-      setEventsData([
-        { name: "page_view", count: 0, users: 0, status: "erro" },
-      ]);
+      
+      // Check if it's a configuration error
+      if (error?.status === 503 || error?.response?.error === 'GA4 not configured') {
+        toast.error("GA4 não está configurado. Configure nas Configurações.");
+      } else {
+        toast.error("Não foi possível carregar eventos do GA4.");
+      }
+      
+      // Set empty data on error
+      setEventsData([]);
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +85,25 @@ const Events = () => {
             <h1 className="text-2xl font-bold text-foreground">Eventos</h1>
             <p className="text-muted-foreground mt-1">Acompanhe e depure seus eventos do GA4</p>
           </div>
-          <DateRangePicker />
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchEvents()}
+              disabled={isLoading}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+            <DateRangePicker 
+              onDateChange={(start, end) => {
+                setStartDate(start);
+                setEndDate(end);
+                // fetchEvents will be called automatically by useEffect when dates change
+              }}
+            />
+          </div>
         </div>
 
         {/* Search and Stats */}
@@ -99,6 +135,24 @@ const Events = () => {
 
         {/* Events Table */}
         <div className="glass-card animate-fade-in">
+          {isLoading ? (
+            <div className="p-8 text-center">
+              <p className="text-sm text-muted-foreground">Carregando eventos...</p>
+            </div>
+          ) : filteredEvents.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                {eventsData.length === 0 
+                  ? "Nenhum evento encontrado no período selecionado" 
+                  : "Nenhum evento corresponde à sua busca"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {eventsData.length === 0 
+                  ? "Configure o GA4 nas Configurações ou aguarde a coleta de dados" 
+                  : "Tente ajustar os filtros de busca"}
+              </p>
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -118,7 +172,10 @@ const Events = () => {
                   <TableCell className="text-right text-foreground">{event.count.toLocaleString("pt-BR")}</TableCell>
                   <TableCell className="text-right text-foreground">{event.users.toLocaleString("pt-BR")}</TableCell>
                   <TableCell className="text-right text-muted-foreground">
-                    {(event.count / event.users).toFixed(2).replace(".", ",")}
+                    {event.users > 0 
+                      ? (event.count / event.users).toFixed(2).replace(".", ",")
+                      : "0,00"
+                    }
                   </TableCell>
                   <TableCell className="text-center">
                     <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
@@ -137,6 +194,7 @@ const Events = () => {
               ))}
             </TableBody>
           </Table>
+          )}
         </div>
 
         {/* Debug Panel */}
@@ -145,33 +203,53 @@ const Events = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">Último Evento Recebido</h4>
-              <code className="block p-4 rounded-lg bg-muted text-sm text-foreground">
-                {`{
-  "event_name": "page_view",
-  "timestamp": "2024-11-30T14:32:18Z",
-  "user_id": "usr_abc123",
-  "page_location": "/produtos/item-1"
+              {eventsData.length > 0 ? (
+                <code className="block p-4 rounded-lg bg-muted text-sm text-foreground">
+                  {`{
+  "event_name": "${eventsData[0]?.name || "N/A"}",
+  "count": ${eventsData[0]?.count || 0},
+  "users": ${eventsData[0]?.users || 0},
+  "status": "${eventsData[0]?.status || "N/A"}"
 }`}
-              </code>
+                </code>
+              ) : (
+                <div className="p-4 rounded-lg bg-muted text-sm text-muted-foreground">
+                  Nenhum evento disponível
+                </div>
+              )}
             </div>
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">Problemas de Rastreamento</h4>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-warning/10 border border-warning/20">
-                  <AlertCircle className="h-4 w-4 text-warning mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">video_complete com baixa taxa de disparo</p>
-                    <p className="text-xs text-muted-foreground mt-1">Apenas 22% dos eventos video_start levam a video_complete</p>
-                  </div>
+              {eventsData.filter(e => e.status !== "ativo").length > 0 ? (
+                <div className="space-y-3">
+                  {eventsData
+                    .filter(e => e.status !== "ativo")
+                    .map((event, index) => (
+                      <div 
+                        key={index}
+                        className={`flex items-start gap-3 p-3 rounded-lg border ${
+                          event.status === "alerta" 
+                            ? "bg-warning/10 border-warning/20"
+                            : "bg-destructive/10 border-destructive/20"
+                        }`}
+                      >
+                        <AlertCircle className={`h-4 w-4 mt-0.5 ${
+                          event.status === "alerta" ? "text-warning" : "text-destructive"
+                        }`} />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{event.name}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Status: {event.status} | Contagem: {event.count} | Usuários: {event.users}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                 </div>
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">form_submit sem parâmetros obrigatórios</p>
-                    <p className="text-xs text-muted-foreground mt-1">O parâmetro form_id não está sendo enviado</p>
-                  </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-muted text-sm text-muted-foreground">
+                  Nenhum problema detectado
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

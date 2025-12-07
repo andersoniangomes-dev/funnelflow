@@ -7,6 +7,8 @@ import eventsRoutes from './routes/events.js';
 import funnelRoutes from './routes/funnel.js';
 import trafficRoutes from './routes/traffic.js';
 import configRoutes from './routes/config.js';
+import utmRoutes from './routes/utm.js';
+import shortenerRoutes from './routes/shortener.js';
 import { loadGA4Config } from './lib/ga4Config.js';
 
 // Load environment variables
@@ -35,6 +37,9 @@ app.use('/kpis', kpisRoutes);
 app.use('/events', eventsRoutes);
 app.use('/funnel', funnelRoutes);
 app.use('/traffic', trafficRoutes);
+app.use('/utm', utmRoutes);
+app.use('/s', shortenerRoutes);
+console.log('✅ Shortener routes registered at /s');
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -47,7 +52,9 @@ app.get('/', (req, res) => {
       kpis: '/kpis',
       events: '/events',
       funnel: '/funnel',
-      traffic: '/traffic'
+      traffic: '/traffic',
+      utm: '/utm',
+      shortener: '/s'
     }
   });
 });

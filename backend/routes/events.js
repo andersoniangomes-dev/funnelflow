@@ -56,12 +56,14 @@ router.get('/', async (req, res) => {
       };
     });
 
+    // Always return events array, even if empty
     res.json({
-      events,
+      events: events || [],
       period: {
         startDate,
         endDate
-      }
+      },
+      total: events.length
     });
 
   } catch (error) {

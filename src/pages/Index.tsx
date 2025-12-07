@@ -9,16 +9,16 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useApi } from "@/hooks/useApi";
 
-// Fallback data
-const fallbackKPIs = [
-  { title: "Sessões", value: "42.580", change: 12.5, changeLabel: "vs período anterior", icon: Eye },
-  { title: "Usuários", value: "28.392", change: 8.2, changeLabel: "vs período anterior", icon: Users },
-  { title: "Conversões", value: "1.847", change: 23.1, changeLabel: "vs período anterior", icon: Target },
-  { title: "Taxa de Conversão", value: "4,34%", change: 9.4, changeLabel: "vs período anterior", icon: TrendingUp },
+// Empty KPIs template
+const emptyKPIs = [
+  { title: "Sessões", value: "0", change: 0, changeLabel: "vs período anterior", icon: Eye },
+  { title: "Usuários", value: "0", change: 0, changeLabel: "vs período anterior", icon: Users },
+  { title: "Conversões", value: "0", change: 0, changeLabel: "vs período anterior", icon: Target },
+  { title: "Taxa de Conversão", value: "0%", change: 0, changeLabel: "vs período anterior", icon: TrendingUp },
 ];
 
 const Index = () => {
-  const [kpis, setKpis] = useState(fallbackKPIs);
+  const [kpis, setKpis] = useState(emptyKPIs);
   const [isLoading, setIsLoading] = useState(true);
   const [startDate, setStartDate] = useState("30daysAgo");
   const [endDate, setEndDate] = useState("today");
@@ -67,9 +67,9 @@ const Index = () => {
       ]);
     } catch (error) {
       console.error("Erro ao buscar KPIs:", error);
-      // Keep fallback data on error
-      setKpis(fallbackKPIs);
-      toast.error("Não foi possível carregar dados do GA4. Usando dados de exemplo.");
+      // Set empty data on error
+      setKpis(emptyKPIs);
+      toast.error("Não foi possível carregar dados do GA4.");
     } finally {
       setIsLoading(false);
     }
@@ -84,7 +84,12 @@ const Index = () => {
             <h1 className="text-2xl font-bold text-foreground">Painel</h1>
             <p className="text-muted-foreground mt-1">Visão geral do desempenho de analytics</p>
           </div>
-          <DateRangePicker />
+          <DateRangePicker 
+            onDateChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+          />
         </div>
 
         {/* KPI Cards */}
@@ -113,27 +118,16 @@ const Index = () => {
         <div className="glass-card p-6 animate-fade-in">
           <h3 className="text-lg font-semibold text-foreground mb-4">Conversões Recentes</h3>
           <div className="space-y-4">
-            {[
-              { event: "compra", source: "google / cpc", time: "2 minutos atrás", value: "R$ 149,00" },
-              { event: "cadastro", source: "instagram / story", time: "5 minutos atrás", value: "-" },
-              { event: "compra", source: "facebook / feed", time: "12 minutos atrás", value: "R$ 89,00" },
-              { event: "compra", source: "tiktok / video", time: "18 minutos atrás", value: "R$ 249,00" },
-              { event: "cadastro", source: "direto / nenhum", time: "25 minutos atrás", value: "-" },
-            ].map((item, index) => (
-              <div key={index} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-                <div className="flex items-center gap-4">
-                  <div className={`h-2 w-2 rounded-full ${item.event === "compra" ? "bg-success" : "bg-primary"}`} />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{item.event}</p>
-                    <p className="text-xs text-muted-foreground">{item.source}</p>
+            {isLoading ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">Carregando conversões recentes...</p>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-foreground">{item.value}</p>
-                  <p className="text-xs text-muted-foreground">{item.time}</p>
-                </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">Nenhuma conversão recente encontrada</p>
+                <p className="text-xs text-muted-foreground mt-2">Os dados aparecerão aqui quando houver conversões no período selecionado</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

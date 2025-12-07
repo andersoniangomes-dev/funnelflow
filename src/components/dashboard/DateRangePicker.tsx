@@ -6,19 +6,37 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const dateRanges = [
-  { label: "Últimos 7 dias", value: "7d" },
-  { label: "Últimos 14 dias", value: "14d" },
-  { label: "Últimos 30 dias", value: "30d" },
-  { label: "Últimos 90 dias", value: "90d" },
-  { label: "Este mês", value: "month" },
-  { label: "Este trimestre", value: "quarter" },
+  { label: "Últimos 7 dias", value: "7daysAgo", endDate: "today" },
+  { label: "Últimos 14 dias", value: "14daysAgo", endDate: "today" },
+  { label: "Últimos 30 dias", value: "30daysAgo", endDate: "today" },
+  { label: "Últimos 90 dias", value: "90daysAgo", endDate: "today" },
+  { label: "Este mês", value: "month", endDate: "today" },
+  { label: "Este trimestre", value: "quarter", endDate: "today" },
 ];
 
-export function DateRangePicker() {
-  const [selected, setSelected] = useState(dateRanges[2]);
+interface DateRangePickerProps {
+  onDateChange?: (startDate: string, endDate: string) => void;
+  defaultRange?: number;
+}
+
+export function DateRangePicker({ onDateChange, defaultRange = 2 }: DateRangePickerProps) {
+  const [selected, setSelected] = useState(dateRanges[defaultRange]);
+
+  useEffect(() => {
+    if (onDateChange) {
+      onDateChange(selected.value, selected.endDate);
+    }
+  }, [selected, onDateChange]);
+
+  const handleSelect = (range: typeof dateRanges[0]) => {
+    setSelected(range);
+    if (onDateChange) {
+      onDateChange(range.value, range.endDate);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -33,7 +51,7 @@ export function DateRangePicker() {
         {dateRanges.map((range) => (
           <DropdownMenuItem
             key={range.value}
-            onClick={() => setSelected(range)}
+            onClick={() => handleSelect(range)}
             className="cursor-pointer"
           >
             {range.label}

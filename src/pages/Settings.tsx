@@ -84,7 +84,7 @@ const Settings = () => {
       const response = await api.health();
       
       if (response.status === "ok" && response.ga4 === "connected") {
-        setConnectionStatus("connected");
+    setConnectionStatus("connected");
         toast.success("Conexão com a API realizada com sucesso! GA4 conectado.");
       } else {
         setConnectionStatus("disconnected");
@@ -199,7 +199,7 @@ const Settings = () => {
               <Label htmlFor="serviceAccount">Service Account JSON *</Label>
               <div className="mt-1.5 space-y-2">
                 <div className="flex items-center gap-2">
-                  <Input
+              <Input
                     type="file"
                     accept=".json"
                     onChange={handleFileUpload}
@@ -226,7 +226,7 @@ const Settings = () => {
                   onChange={(e) => setServiceAccountJson(e.target.value)}
                   className="min-h-[200px] font-mono text-xs"
                   disabled={isLoadingConfig || serviceAccountJson.includes("***")}
-                />
+              />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Faça upload ou cole o conteúdo do arquivo JSON do Service Account do Google Cloud.
@@ -357,7 +357,67 @@ const Settings = () => {
                   Baixar todos os seus dados de analytics em CSV
                 </p>
               </div>
-              <Button variant="outline" size="sm">Exportar</Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const apiEndpoint = localStorage.getItem("api_endpoint");
+                    if (!apiEndpoint) {
+                      toast.error("Configure a URL da API primeiro");
+                      return;
+                    }
+                    api.setBaseUrl(apiEndpoint);
+                    
+                    // Fetch all data
+                    const [kpis, events, funnel, traffic] = await Promise.all([
+                      api.getKPIs().catch(() => null),
+                      api.getEvents().catch(() => null),
+                      null, // Funnel data removed - use saved funnels instead
+                      api.getTrafficSources().catch(() => null)
+                    ]);
+
+                    // Convert to CSV format
+                    let csv = "Tipo,Dados\n";
+                    
+                    if (kpis) {
+                      csv += `KPIs,"Sessões: ${kpis.sessions.value}, Usuários: ${kpis.users.value}, Conversões: ${kpis.conversions.value}, Taxa: ${kpis.conversionRate.value}"\n`;
+                    }
+                    
+                    if (events && events.events) {
+                      csv += "\nEventos,Nome,Contagem,Usuários\n";
+                      events.events.forEach((e: any) => {
+                        csv += `,"${e.name}",${e.count},${e.users}\n`;
+                      });
+                    }
+                    
+                    if (traffic && traffic.sources) {
+                      csv += "\nFontes de Tráfego,Fonte,Sessões,Conversões\n";
+                      traffic.sources.forEach((s: any) => {
+                        csv += `,"${s.source}",${s.sessions},${s.conversions}\n`;
+                      });
+                    }
+
+                    // Download CSV
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                    const link = document.createElement("a");
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `funnelflow-export-${new Date().toISOString().split('T')[0]}.csv`);
+                    link.style.visibility = "hidden";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    toast.success("Dados exportados com sucesso!");
+                  } catch (error) {
+                    toast.error("Erro ao exportar dados");
+                    console.error(error);
+                  }
+                }}
+              >
+                Exportar
+              </Button>
             </div>
 
             <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/20 bg-destructive/5">
@@ -367,7 +427,21 @@ const Settings = () => {
                   Limpar todos os dados de analytics em cache
                 </p>
               </div>
-              <Button variant="outline" size="sm" className="border-destructive/50 text-destructive hover:bg-destructive/10">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  if (confirm("Tem certeza que deseja limpar o cache? Isso não afetará os dados do GA4.")) {
+                    localStorage.removeItem("api_endpoint");
+                    localStorage.removeItem("ga4_property_id");
+                    localStorage.removeItem("saved_utms");
+                    toast.success("Cache limpo com sucesso!");
+                    // Reload page
+                    setTimeout(() => window.location.reload(), 1000);
+                  }
+                }}
+              >
                 Limpar
               </Button>
             </div>
