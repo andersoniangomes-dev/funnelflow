@@ -378,8 +378,24 @@ const UTMBuilder = () => {
       const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
       api.setBaseUrl(apiEndpoint);
       
-      // Get tracking URL first
-      const utmId = Date.now().toString(); // Temporary ID for preview
+      // Try to find existing UTM with same parameters to use its ID
+      let utmId: string | number = Date.now().toString(); // Temporary ID (fallback)
+      const matchingUtm = savedUTMs.find((utm: any) => 
+        utm.source === source && 
+        utm.medium === medium && 
+        utm.campaign === campaign &&
+        utm.url === generatedUrl
+      );
+      
+      if (matchingUtm && matchingUtm.id) {
+        utmId = matchingUtm.id;
+        console.log("✅ UTM existente encontrado, usando ID:", utmId);
+      } else {
+        console.log("⚠️ Nenhum UTM correspondente encontrado, usando ID temporário:", utmId);
+        toast.info("💡 Dica: Salve a UTM primeiro para que os cliques sejam contabilizados corretamente!");
+      }
+      
+      // Get tracking URL
       const trackingUrl = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
       
       console.log("🔗 Tentando encurtar URL:", trackingUrl, customShortCode.trim() ? `com código: ${customShortCode.trim()}` : "");
