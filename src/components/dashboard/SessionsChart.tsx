@@ -1,8 +1,34 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
 
 export function SessionsChart() {
-  // Empty data - will be populated when GA4 data is available
-  const data: Array<{ date: string; sessoes: number; conversoes: number }> = [];
+  const [data, setData] = useState<Array<{ date: string; sessoes: number; conversoes: number }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useApi();
+
+  useEffect(() => {
+    fetchSessionsData();
+  }, []);
+
+  const fetchSessionsData = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.getSessionsOverTime('30daysAgo', 'today');
+      if (response.data && response.data.length > 0) {
+        setData(response.data);
+      } else {
+        setData([]);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar dados de sessões:", error);
+      setData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="glass-card p-6 animate-fade-in">
@@ -10,7 +36,13 @@ export function SessionsChart() {
         <h3 className="text-lg font-semibold text-foreground">Sessões vs Conversões</h3>
         <p className="text-sm text-muted-foreground">Desempenho dos últimos 30 dias</p>
       </div>
-      {data.length === 0 ? (
+      {isLoading ? (
+        <div className="h-[300px] flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">Carregando dados...</p>
+          </div>
+        </div>
+      ) : data.length === 0 ? (
         <div className="h-[300px] flex items-center justify-center">
           <div className="text-center">
             <p className="text-sm text-muted-foreground">Nenhum dado disponível</p>

@@ -217,5 +217,128 @@ function calculatePreviousPeriod(startDate, endDate) {
   };
 }
 
+// Get sessions and conversions over time (for charts)
+router.get('/sessions-over-time', async (req, res) => {
+  try {
+    const propertyId = getPropertyId();
+    const { startDate = '30daysAgo', endDate = 'today' } = req.query;
+
+    if (!propertyId) {
+      return res.status(400).json({
+        error: 'GA4 Property ID not configured'
+      });
+    }
+
+    const analyticsDataClient = await getAnalyticsClient();
+    
+    if (!analyticsDataClient) {
+      return res.status(503).json({
+        error: 'GA4 client not initialized. Check your credentials.'
+      });
+    }
+
+    // Fetch sessions and conversions by date
+    const [response] = await analyticsDataClient.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [
+        {
+          startDate: startDate,
+          endDate: endDate,
+        },
+      ],
+      dimensions: [{ name: 'date' }],
+      metrics: [
+        { name: 'sessions' },
+        { name: 'conversions' },
+      ],
+      orderBys: [
+        {
+          dimension: { dimensionName: 'date' },
+        },
+      ],
+    });
+
+    const data = (response.rows || []).map(row => {
+      const dateStr = row.dimensionValues[0]?.value || '';
+      // Format date: YYYYMMDD -> DD/MM
+      const formattedDate = dateStr.length === 8 
+        ? `${dateStr.substring(6, 8)}/${dateStr.substring(4, 6)}`
+        : dateStr;
+      
+      const sessions = parseInt(row.metricValues[0]?.value || '0');
+      let conversions = parseInt(row.metricValues[1]?.value || '0');
+
+      return {
+        date: formattedDate,
+        sessoes: sessions,
+        conversoes: conversions
+      };
+    });
+
+    // Add begin_checkout events to conversions by date
+    try {
+      const [beginCheckoutResponse] = await analyticsDataClient.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [
+          {
+            startDate: startDate,
+            endDate: endDate,
+          },
+        ],
+        dimensions: [
+          { name: 'eventName' },
+          { name: 'date' }
+        ],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'eventName',
+            stringFilter: {
+              matchType: 'EXACT',
+              value: 'begin_checkout',
+            },
+          },
+        },
+      });
+
+      // Create a map for quick lookup
+      const dataMap = new Map(data.map(d => [d.date, d]));
+
+      // Add begin_checkout counts to conversions
+      beginCheckoutResponse.rows?.forEach(row => {
+        const dateStr = row.dimensionValues[1]?.value || '';
+        const formattedDate = dateStr.length === 8 
+          ? `${dateStr.substring(6, 8)}/${dateStr.substring(4, 6)}`
+          : dateStr;
+        const beginCheckoutCount = parseInt(row.metricValues[0]?.value || '0');
+        
+        const dayData = dataMap.get(formattedDate);
+        if (dayData) {
+          dayData.conversoes += beginCheckoutCount;
+        }
+      });
+
+      console.log(`✅ Adicionados eventos begin_checkout às conversões por data`);
+    } catch (error) {
+      console.warn('⚠️ Erro ao buscar eventos begin_checkout por data:', error.message);
+    }
+
+    res.json({
+      data: data,
+      period: {
+        startDate,
+        endDate
+      }
+    });
+
+  } catch (error) {
+    console.error('Sessions over time error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch sessions over time',
+      message: error.message
+    });
+  }
+});
+
 export default router;
 

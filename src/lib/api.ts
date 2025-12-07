@@ -126,6 +126,13 @@ class ApiClient {
     return this.request(`/traffic/campaigns?startDate=${startDate}&endDate=${endDate}`);
   }
 
+  async getSessionsOverTime(startDate: string = '30daysAgo', endDate: string = 'today') {
+    return this.request<{
+      data: Array<{ date: string; sessoes: number; conversoes: number }>;
+      period: { startDate: string; endDate: string };
+    }>(`/kpis/sessions-over-time?startDate=${startDate}&endDate=${endDate}`);
+  }
+
   async getConfig() {
     return this.request<{
       propertyId: string;
