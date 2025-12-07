@@ -1,4 +1,13 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://funnelflow-backend.onrender.com';
+// Normalize URL - remove trailing slash
+const getDefaultApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    return envUrl.replace(/\/$/, '');
+  }
+  return 'https://funnelflow-backend.onrender.com';
+};
+
+const API_BASE_URL = getDefaultApiUrl();
 
 export interface HealthResponse {
   status: 'ok' | 'error';

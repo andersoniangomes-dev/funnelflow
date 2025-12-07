@@ -11,7 +11,11 @@ import { api } from "@/lib/api";
 const Settings = () => {
   // Get default API URL from environment or use Render URL
   const getDefaultApiUrl = () => {
-    return import.meta.env.VITE_API_URL || 'https://funnelflow-backend.onrender.com';
+    const envUrl = import.meta.env.VITE_API_URL;
+    if (envUrl) {
+      return envUrl.replace(/\/$/, ''); // Remove trailing slash
+    }
+    return 'https://funnelflow-backend.onrender.com';
   };
 
   const [apiEndpoint, setApiEndpoint] = useState(() => {
@@ -49,7 +53,9 @@ const Settings = () => {
   const loadConfiguration = async () => {
     setIsLoadingConfig(true);
     try {
-      api.setBaseUrl(apiEndpoint);
+      // Normalize endpoint to remove trailing slash
+      const normalizedEndpoint = (apiEndpoint || getDefaultApiUrl()).replace(/\/$/, '');
+      api.setBaseUrl(normalizedEndpoint);
       const config = await api.getConfig();
       setPropertyId(config.propertyId || "");
       // Don't load the full JSON for security, just indicate if it exists
@@ -89,8 +95,8 @@ const Settings = () => {
     setConnectionStatus("testing");
     
     try {
-      // Update API base URL
-      const currentEndpoint = apiEndpoint || getDefaultApiUrl();
+      // Update API base URL - normalize to remove trailing slash
+      const currentEndpoint = (apiEndpoint || getDefaultApiUrl()).replace(/\/$/, '');
       api.setBaseUrl(currentEndpoint);
       
       console.log("🧪 Testando conexão com:", currentEndpoint);
@@ -112,10 +118,16 @@ const Settings = () => {
       setHealthData(null);
       
       // Show helpful error message
-      if (error?.status === 404 || error?.message?.includes("404")) {
+      const status = error?.status || error?.response?.status;
+      
+      if (status === 503) {
+        toast.error("Backend suspenso ou inicializando. Aguarde 1-2 minutos e tente novamente. Configure UptimeRobot para evitar suspensão.");
+      } else if (status === 404 || error?.message?.includes("404")) {
         toast.error("Backend não encontrado. Verifique se o serviço está online ou se a URL está correta.");
       } else if (error?.name === "AbortError") {
         toast.error("Timeout: O backend pode estar suspenso (plano gratuito). Aguarde 1-2 minutos.");
+      } else {
+        toast.error(`Erro ao conectar: ${error?.message || "Erro desconhecido"}`);
       }
     }
   };
@@ -133,8 +145,8 @@ const Settings = () => {
 
     setIsSavingConfig(true);
     try {
-      // Ensure API base URL is set correctly
-      const currentEndpoint = apiEndpoint || getDefaultApiUrl();
+      // Ensure API base URL is set correctly - normalize to remove trailing slash
+      const currentEndpoint = (apiEndpoint || getDefaultApiUrl()).replace(/\/$/, '');
       api.setBaseUrl(currentEndpoint);
       
       console.log("🔗 Salvando configuração para:", currentEndpoint);
@@ -168,7 +180,9 @@ const Settings = () => {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
       const status = error?.status || error?.response?.status;
       
-      if (status === 404) {
+      if (status === 503) {
+        toast.error("Backend suspenso ou inicializando. Aguarde 1-2 minutos e tente novamente. Configure UptimeRobot para evitar suspensão.");
+      } else if (status === 404) {
         toast.error(`Erro 404: Endpoint não encontrado. Verifique se a URL do backend está correta: ${apiEndpoint || getDefaultApiUrl()}`);
       } else if (status === 400) {
         toast.error("Erro 400: Dados inválidos. Verifique o Property ID e o JSON do Service Account.");
@@ -183,11 +197,15 @@ const Settings = () => {
   const handleSaveEndpoint = () => {
     // Only save if not from environment variable
     if (!isEnvVar) {
-      localStorage.setItem("api_endpoint", apiEndpoint);
+      // Normalize endpoint before saving
+      const normalizedEndpoint = apiEndpoint.replace(/\/$/, '');
+      localStorage.setItem("api_endpoint", normalizedEndpoint);
+      setApiEndpoint(normalizedEndpoint);
     }
     
-    // Update API base URL
-    api.setBaseUrl(apiEndpoint);
+    // Update API base URL - normalize to remove trailing slash
+    const normalizedEndpoint = apiEndpoint.replace(/\/$/, '');
+    api.setBaseUrl(normalizedEndpoint);
     
     toast.success("URL do endpoint atualizada!");
     testConnection();
