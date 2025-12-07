@@ -337,8 +337,18 @@ router.get('/sessions-over-time', async (req, res) => {
       return dayA - dayB;
     });
 
+    console.log(`📊 Retornando ${data.length} pontos de dados para gráfico de sessões`);
+    if (data.length > 0) {
+      console.log(`📈 Primeiros 3 pontos:`, data.slice(0, 3));
+      const totalSessions = data.reduce((sum, d) => sum + d.sessoes, 0);
+      const totalConversions = data.reduce((sum, d) => sum + d.conversoes, 0);
+      console.log(`📊 Total: ${totalSessions} sessões, ${totalConversions} conversões (begin_checkout)`);
+    } else {
+      console.warn('⚠️ Nenhum dado retornado. Verifique se há sessões e eventos begin_checkout no GA4.');
+    }
+
     res.json({
-      data: data,
+      data: data || [],
       period: {
         startDate,
         endDate
