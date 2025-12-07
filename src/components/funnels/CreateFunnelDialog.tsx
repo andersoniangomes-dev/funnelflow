@@ -21,6 +21,7 @@ import {
 import { Plus, X, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useApi } from "@/hooks/useApi";
 
 interface FunnelStep {
   eventName: string;
@@ -40,6 +41,9 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Ensure API base URL is set
+  useApi();
+
   useEffect(() => {
     if (open) {
       loadAvailableEvents();
@@ -49,18 +53,39 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
   const loadAvailableEvents = async () => {
     setIsLoadingEvents(true);
     try {
-      const response = await api.getEvents();
-      if (response.events) {
+      // Use same date range as Events page (30 days ago to today)
+      const response = await api.getEvents("30daysAgo", "today");
+      
+      // Check if response has events array
+      if (response && response.events && Array.isArray(response.events)) {
         setAvailableEvents(
           response.events.map((e: any) => ({
             name: e.name,
             count: e.count || 0
           }))
         );
+      } else {
+        // If no events, set empty array
+        setAvailableEvents([]);
+        if (response && response.error) {
+          toast.error(response.error || "Erro ao carregar eventos");
+        } else if (!response.events || response.events.length === 0) {
+          // No error but no events - this is ok, just show empty list
+          setAvailableEvents([]);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao carregar eventos:", error);
-      toast.error("Não foi possível carregar eventos disponíveis");
+      
+      // Check if it's a configuration error
+      if (error?.status === 503 || error?.response?.error === 'GA4 not configured') {
+        toast.error("GA4 não está configurado. Configure nas Configurações.");
+      } else {
+        toast.error("Não foi possível carregar eventos disponíveis");
+      }
+      
+      // Set empty array on error
+      setAvailableEvents([]);
     } finally {
       setIsLoadingEvents(false);
     }
