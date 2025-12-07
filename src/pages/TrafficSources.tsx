@@ -45,7 +45,7 @@ const TrafficSources = () => {
     setHasError(false);
     try {
       // Garantir que a API está configurada com a URL correta
-      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+      const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
       api.setBaseUrl(apiEndpoint);
 
       // Fetch sources

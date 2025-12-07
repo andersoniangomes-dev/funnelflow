@@ -131,15 +131,9 @@ router.post('/', async (req, res) => {
 
         // Set environment variable for current process
         process.env.GA4_PROPERTY_ID = propertyId.trim();
-        // For database mode, we'll need to handle credentials differently
-        // For now, still save to file for GA4 client compatibility
-        await ensureConfigDir();
-        await fs.writeFile(
-          CREDENTIALS_FILE,
-          JSON.stringify(credentialsObj, null, 2),
-          'utf8'
-        );
-        process.env.GOOGLE_APPLICATION_CREDENTIALS = CREDENTIALS_FILE;
+        // Don't set GOOGLE_APPLICATION_CREDENTIALS when using database
+        // The ga4Client will load credentials from database and create temp file
+        // This avoids the ENAMETOOLONG error
 
         return res.json({
           success: true,

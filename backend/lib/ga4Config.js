@@ -87,6 +87,16 @@ export function getGA4PropertyId() {
 
 // Get credentials path
 export function getCredentialsPath() {
-  return process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  // Only return path if it's actually a file path, not JSON content
+  const path = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!path) return null;
+  
+  // If it looks like JSON (starts with {), return null
+  // This happens when credentials are loaded from database
+  if (path.trim().startsWith('{')) {
+    return null;
+  }
+  
+  return path;
 }
 

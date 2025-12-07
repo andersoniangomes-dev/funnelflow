@@ -112,7 +112,7 @@ const Funnels = () => {
     setIsLoading(true);
     try {
       // Garantir que a API está configurada com a URL correta
-      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+      const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
       api.setBaseUrl(apiEndpoint);
 
       const stepsToFetch = steps || (selectedFunnelId 
@@ -447,7 +447,7 @@ const Funnels = () => {
                             const wasDefault = funnel.isDefault;
                             
                             try {
-                              const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+                              const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
                               api.setBaseUrl(apiEndpoint);
                               
                               // Try to delete from database
