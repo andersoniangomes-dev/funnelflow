@@ -44,11 +44,20 @@ const loadSavedUTMs = async () => {
     
     try {
       const response = await api.getSavedUTMs();
+      console.log("📥 Resposta do banco de dados:", response);
       if (response.utms && response.utms.length > 0) {
         console.log("📥 UTMs carregados do banco de dados:", response.utms.length);
+        // Convert IDs to numbers for compatibility with existing code
+        const formattedUTMs = response.utms.map((utm: any) => ({
+          ...utm,
+          id: typeof utm.id === 'string' ? parseInt(utm.id) : (typeof utm.id === 'number' ? utm.id : parseInt(String(utm.id)))
+        }));
+        console.log("📥 UTMs formatados:", formattedUTMs);
         // Also save to localStorage as backup
-        localStorage.setItem("saved_utms", JSON.stringify(response.utms));
-        return response.utms;
+        localStorage.setItem("saved_utms", JSON.stringify(formattedUTMs));
+        return formattedUTMs;
+      } else {
+        console.log("📥 Nenhum UTM no banco de dados, tentando localStorage...");
       }
     } catch (dbError) {
       console.warn("⚠️ Erro ao carregar UTMs do banco, usando localStorage:", dbError);
@@ -134,18 +143,13 @@ const UTMBuilder = () => {
   // Load saved UTMs on mount
   useEffect(() => {
     const loadUTMs = async () => {
+      console.log("🔄 Carregando UTMs salvos...");
       const utms = await loadSavedUTMs();
-      setSavedUTMs(utms);
-    };
-    loadUTMs();
-  }, []);
-
-  // Load stats on mount and periodically
-  useEffect(() => {
-    // Update old UTMs that don't have trackingUrl or have localhost URLs (only on mount)
-    if (savedUTMs && savedUTMs.length > 0) {
+      console.log("✅ UTMs carregados:", utms.length, utms);
+      
+      // Update old UTMs that don't have trackingUrl or have localhost URLs
       const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
-      const updatedUTMs = savedUTMs.map((utm: any) => {
+      const updatedUTMs = utms.map((utm: any) => {
         // Update if no trackingUrl or if it contains localhost
         if (!utm.trackingUrl || (utm.trackingUrl && utm.trackingUrl.includes('localhost'))) {
           if (utm.url) {
@@ -159,21 +163,37 @@ const UTMBuilder = () => {
       });
       
       const hasChanges = updatedUTMs.some((utm: any, index: number) => 
-        utm.trackingUrl !== savedUTMs[index]?.trackingUrl
+        utm.trackingUrl !== utms[index]?.trackingUrl
       );
       
       if (hasChanges) {
         console.log("🔄 Atualizando URLs de tracking dos UTMs salvos");
+        await saveUTMs(updatedUTMs);
         setSavedUTMs(updatedUTMs);
-        saveUTMs(updatedUTMs);
+      } else {
+        setSavedUTMs(updatedUTMs);
       }
+    };
+    loadUTMs();
+  }, []);
+
+  // Load stats when savedUTMs change
+  useEffect(() => {
+    // Only load stats if we have UTMs loaded
+    if (savedUTMs.length > 0) {
+      console.log("📊 Carregando stats para", savedUTMs.length, "UTMs");
+      loadStats();
+      
+      const interval = setInterval(() => {
+        loadStats();
+      }, 10000); // Update every 10 seconds
+      
+      return () => clearInterval(interval);
+    } else {
+      console.log("⏳ Aguardando UTMs serem carregados antes de buscar stats...");
     }
-    
-    loadStats();
-    const interval = setInterval(loadStats, 10000); // Update every 10 seconds
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount
+  }, [savedUTMs]); // Run when savedUTMs change
 
   const loadStats = async () => {
     setIsLoadingStats(true);
@@ -202,16 +222,22 @@ const UTMBuilder = () => {
       }
       
       // Log saved UTMs for debugging
-      console.log("📋 UTMs salvos:", savedUTMs.map(u => ({ id: String(u.id), name: u.name })));
+      console.log("📋 UTMs salvos:", savedUTMs.length, savedUTMs.map(u => ({ id: String(u.id), name: u.name })));
       console.log("📊 Mapa de estatísticas completo:", statsMap);
       
       // Check for UTMs without stats
-      savedUTMs.forEach((utm: any) => {
-        const utmIdKey = String(utm.id);
-        if (!statsMap[utmIdKey]) {
-          console.log(`⚠️ UTM ${utmIdKey} (${utm.name}) não tem estatísticas ainda`);
-        }
-      });
+      if (savedUTMs.length > 0) {
+        savedUTMs.forEach((utm: any) => {
+          const utmIdKey = String(utm.id);
+          if (!statsMap[utmIdKey]) {
+            console.log(`⚠️ UTM ${utmIdKey} (${utm.name}) não tem estatísticas ainda`);
+          } else {
+            console.log(`✅ UTM ${utmIdKey} (${utm.name}) tem ${statsMap[utmIdKey].totalClicks} cliques`);
+          }
+        });
+      } else {
+        console.log("⚠️ Nenhum UTM salvo encontrado para corresponder com estatísticas");
+      }
       
       setUtmStats(statsMap);
     } catch (error) {
