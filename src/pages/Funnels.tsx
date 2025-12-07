@@ -51,7 +51,7 @@ const Funnels = () => {
   }, []);
 
   useEffect(() => {
-    // Reload funnel when date range or selected funnel changes
+    // Reload funnel when date range, selected funnel, or saved funnels changes
     if (selectedFunnelId) {
       const selectedFunnel = savedFunnels.find(f => f.id === selectedFunnelId);
       const steps = selectedFunnel?.steps?.join(",");
@@ -60,7 +60,7 @@ const Funnels = () => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate, selectedFunnelId]);
+  }, [startDate, endDate, selectedFunnelId, savedFunnels]);
 
   const loadSavedFunnelsList = () => {
     setSavedFunnels(loadSavedFunnels());
