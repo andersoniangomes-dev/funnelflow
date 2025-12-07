@@ -112,8 +112,9 @@ const Funnels = () => {
     setIsLoading(true);
     try {
       // Garantir que a API está configurada com a URL correta
-      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+      const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
       api.setBaseUrl(apiEndpoint);
+      console.log("🔍 Buscando dados do funil, endpoint:", apiEndpoint);
 
       const stepsToFetch = steps || (selectedFunnelId 
         ? savedFunnels.find(f => f.id === selectedFunnelId)?.steps.join(",")
@@ -121,38 +122,56 @@ const Funnels = () => {
       );
       
       if (!stepsToFetch) {
+        console.log("⚠️ Nenhum passo de funil para buscar");
         setIsLoading(false);
         return;
       }
 
+      console.log("📊 Buscando funil com steps:", stepsToFetch, "período:", startDate, "até", endDate);
       const response = await api.getFunnel(stepsToFetch, startDate, endDate);
+      console.log("📥 Resposta do funil:", response);
       
       if (response.steps && response.steps.length > 0) {
-        setFunnelSteps(response.steps);
-        if (response.summary) {
-          setFunnelSummary({
-            totalConversionRate: response.summary.totalConversionRate || "0%",
-            totalDropoffs: response.summary.totalDropoffs || "0",
-            totalRevenue: response.summary.totalRevenue || "R$ 0"
-          });
+        // Filter out steps with 0 users to avoid showing empty steps
+        const validSteps = response.steps.filter((step: any) => step.users > 0);
+        
+        if (validSteps.length > 0) {
+          setFunnelSteps(validSteps);
+          if (response.summary) {
+            setFunnelSummary({
+              totalConversionRate: response.summary.totalConversionRate || "0%",
+              totalDropoffs: response.summary.totalDropoffs || "0",
+              totalRevenue: response.summary.totalRevenue || "R$ 0"
+            });
+          } else {
+            // Reset to zero if no summary
+            setFunnelSummary({
+              totalConversionRate: "0%",
+              totalDropoffs: "0",
+              totalRevenue: "R$ 0"
+            });
+          }
+
+          // Update current funnel name
+          if (selectedFunnelId) {
+            const selectedFunnel = savedFunnels.find(f => f.id === selectedFunnelId);
+            if (selectedFunnel) {
+              setCurrentFunnelName(selectedFunnel.name);
+            }
+          }
         } else {
-          // Reset to zero if no summary
+          // All steps have 0 users - no data available
+          console.log("⚠️ Todos os steps têm 0 usuários - sem dados disponíveis");
+          setFunnelSteps([]);
           setFunnelSummary({
             totalConversionRate: "0%",
             totalDropoffs: "0",
             totalRevenue: "R$ 0"
           });
         }
-
-        // Update current funnel name
-        if (selectedFunnelId) {
-          const selectedFunnel = savedFunnels.find(f => f.id === selectedFunnelId);
-          if (selectedFunnel) {
-            setCurrentFunnelName(selectedFunnel.name);
-          }
-        }
       } else {
         // Reset to zero if no steps
+        console.log("⚠️ Resposta não contém steps ou está vazia");
         setFunnelSteps([]);
         setFunnelSummary({
           totalConversionRate: "0%",
@@ -160,9 +179,17 @@ const Funnels = () => {
           totalRevenue: "R$ 0"
         });
       }
-    } catch (error) {
-      console.error("Erro ao buscar funil:", error);
-      toast.error("Não foi possível carregar dados do funil do GA4.");
+    } catch (error: any) {
+      console.error("❌ Erro ao buscar funil:", error);
+      const errorMessage = error?.message || "Erro desconhecido";
+      
+      // Check if it's a configuration error
+      if (error?.status === 503 || error?.response?.error === 'GA4 not configured') {
+        toast.error("GA4 não está configurado. Configure nas Configurações.");
+      } else {
+        toast.error(`Não foi possível carregar dados do funil: ${errorMessage}`);
+      }
+      
       // Set empty data on error
       setFunnelSteps([]);
       setFunnelSummary({
@@ -278,10 +305,29 @@ const Funnels = () => {
             <div className="text-center py-12">
               <p className="text-sm text-muted-foreground">Carregando dados do funil...</p>
             </div>
+          ) : !selectedFunnelId ? (
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground">Nenhum funil selecionado</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {savedFunnels.length === 0 
+                  ? "Crie um funil usando o botão 'Novo Funil' acima" 
+                  : "Selecione um funil da lista abaixo para visualizar os dados"}
+              </p>
+            </div>
           ) : funnelSteps.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-sm text-muted-foreground">Nenhum dado de funil disponível</p>
-              <p className="text-xs text-muted-foreground mt-2">Configure o GA4 e aguarde a coleta de dados</p>
+              <p className="text-sm text-muted-foreground">Nenhum dado disponível para este funil</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Isso pode acontecer se:
+              </p>
+              <ul className="text-xs text-muted-foreground mt-2 list-disc list-inside space-y-1">
+                <li>Os eventos do funil não ocorreram no período selecionado</li>
+                <li>O GA4 ainda não coletou dados suficientes</li>
+                <li>Os nomes dos eventos não correspondem aos eventos reais no GA4</li>
+              </ul>
+              <p className="text-xs text-muted-foreground mt-3">
+                Tente selecionar um período maior ou verifique se os eventos estão configurados corretamente no GA4.
+              </p>
             </div>
           ) : (
           <div className="flex flex-col gap-4">
