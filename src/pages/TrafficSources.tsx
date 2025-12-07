@@ -6,6 +6,15 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useApi } from "@/hooks/useApi";
 
+// Get default API URL from environment or use Render URL
+const getDefaultApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    return envUrl.replace(/\/$/, ''); // Remove trailing slash
+  }
+  return 'https://funnelflow-backend.onrender.com';
+};
+
 
 const platformColors = [
   { name: "Google Ads", value: 35, color: "hsl(262, 83%, 58%)" },
@@ -45,7 +54,7 @@ const TrafficSources = () => {
     setHasError(false);
     try {
       // Garantir que a API está configurada com a URL correta
-      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+      const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
       api.setBaseUrl(apiEndpoint);
 
       // Fetch sources
