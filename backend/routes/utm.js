@@ -255,6 +255,8 @@ router.delete('/clicks/orphans', async (req, res) => {
       `;
       const savedUtmIds = savedUTMs.map(u => String(u.id));
       
+      console.log(`🗑️ Deletando cliques de UTMs órfãos. UTMs salvos: ${savedUtmIds.length}`);
+      
       if (savedUtmIds.length === 0) {
         // No saved UTMs, delete all clicks
         await sql`DELETE FROM utm_clicks`;
@@ -266,93 +268,49 @@ router.delete('/clicks/orphans', async (req, res) => {
       }
       
       // Delete clicks for UTMs that are not saved
-      const result = await sql`
-        DELETE FROM utm_clicks
-        WHERE utm_id::text NOT IN (${sql(savedUtmIds)})
+      // Use iterative approach for better compatibility with Neon serverless
+      
+      // Get count of clicks before deletion
+      const beforeCountResult = await sql`
+        SELECT COUNT(*) as count FROM utm_clicks
+      `;
+      const beforeCount = parseInt(beforeCountResult[0]?.count || 0);
+      
+      // Get all distinct UTM IDs from clicks
+      const allClicks = await sql`
+        SELECT DISTINCT utm_id FROM utm_clicks
       `;
       
-      res.json({ 
-        success: true, 
-        deleted: result.count || 0,
-        message: `${result.count || 0} cliques de UTMs não salvos foram deletados` 
-      });
-    } else {
-      res.status(503).json({
-        error: 'Database not available'
-      });
-    }
-  } catch (error) {
-    console.error('Error deleting orphan clicks:', error);
-    res.status(500).json({
-      error: 'Failed to delete orphan clicks',
-      message: error.message
-    });
-  }
-});
-
-// Delete clicks for orphan UTMs (UTMs not saved)
-router.delete('/clicks/orphans', async (req, res) => {
-  try {
-    if (isDatabaseAvailable()) {
-      // Get all saved UTM IDs
-      const savedUTMs = await sql`
-        SELECT id::text as id FROM saved_utms
-      `;
-      const savedUtmIds = savedUTMs.map(u => String(u.id));
+      // Find orphan UTM IDs (those not in saved UTMs)
+      const orphanIds = allClicks
+        .map(c => String(c.utm_id))
+        .filter(id => !savedUtmIds.includes(id));
       
-      console.log(`🗑️ Deletando cliques de UTMs órfãos. UTMs salvos: ${savedUtmIds.length}`);
+      console.log(`🔍 Encontrados ${orphanIds.length} UTMs órfãos para deletar`);
       
-      if (savedUtmIds.length === 0) {
-        // No saved UTMs, delete all clicks
-        const result = await sql`DELETE FROM utm_clicks`;
-        return res.json({ 
-          success: true, 
-          deleted: 'all',
-          message: 'Todos os cliques foram deletados (nenhum UTM salvo)' 
-        });
-      }
-      
-      // Delete clicks for UTMs that are not saved
-      // Use a subquery approach for better compatibility with Neon
-      let deletedCount = 0;
-      
-      if (savedUtmIds.length > 0) {
-        // Get all clicks first
-        const allClicks = await sql`
-          SELECT DISTINCT utm_id FROM utm_clicks
-        `;
-        
-        // Find orphan UTM IDs
-        const orphanIds = allClicks
-          .map(c => String(c.utm_id))
-          .filter(id => !savedUtmIds.includes(id));
-        
-        if (orphanIds.length > 0) {
-          // Delete clicks for each orphan UTM ID
-          for (const orphanId of orphanIds) {
-            const result = await sql`
-              DELETE FROM utm_clicks
-              WHERE utm_id = ${orphanId}
-            `;
-            deletedCount += result.count || 0;
-          }
+      // Delete clicks for each orphan UTM ID (one at a time for Neon compatibility)
+      if (orphanIds.length > 0) {
+        for (const orphanId of orphanIds) {
+          await sql`
+            DELETE FROM utm_clicks
+            WHERE utm_id = ${orphanId}
+          `;
         }
-        
-        console.log(`✅ Cliques órfãos deletados: ${deletedCount}`);
       }
+      
+      // Get count of clicks after deletion
+      const afterCountResult = await sql`
+        SELECT COUNT(*) as count FROM utm_clicks
+      `;
+      const afterCount = parseInt(afterCountResult[0]?.count || 0);
+      const deletedCount = beforeCount - afterCount;
+      
+      console.log(`✅ Cliques órfãos deletados: ${deletedCount} (${beforeCount} → ${afterCount})`);
       
       res.json({ 
         success: true, 
         deleted: deletedCount,
         message: `${deletedCount} cliques de UTMs não salvos foram deletados` 
-      });
-      
-      console.log(`✅ Cliques órfãos deletados`);
-      
-      res.json({ 
-        success: true, 
-        deleted: result.count || 0,
-        message: `${result.count || 0} cliques de UTMs não salvos foram deletados` 
       });
     } else {
       res.status(503).json({
