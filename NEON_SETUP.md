@@ -20,11 +20,9 @@
 ### 2. Obter String de Conexão
 
 1. No dashboard do Neon, vá em "Connection Details"
-2. Copie a **Connection String** (psql 'postgresql://neondb_owner:npg_JBGD8cbHlM3A@ep-wispy-grass-aeqbrv6u-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require')
+2. Copie a **Connection String** (formato: `postgresql://user:password@hostname/database?sslmode=require`)
 3. Exemplo:
-   ```
-   postgresql://user:password@ep-xxx-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
-   ```
+psql 'postgresql://neondb_owner:npg_JBGD8cbHlM3A@ep-wispy-grass-aeqbrv6u-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
 
 ### 3. Configurar no Backend
 

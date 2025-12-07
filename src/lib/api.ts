@@ -40,10 +40,16 @@ class ApiClient {
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    console.log("🔧 ApiClient inicializado com baseUrl:", this.baseUrl);
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    // Remove trailing slash from baseUrl and leading slash from endpoint to avoid double slashes
+    const baseUrl = this.baseUrl.replace(/\/$/, '');
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${baseUrl}${cleanEndpoint}`;
+    
+    console.log(`📡 Request: ${options?.method || 'GET'} ${url}`);
     
     // Create abort controller for timeout
     const controller = new AbortController();
@@ -58,6 +64,8 @@ class ApiClient {
           ...options?.headers,
         },
       });
+      
+      console.log(`📥 Response: ${response.status} ${response.statusText}`, url);
 
       clearTimeout(timeoutId);
 
@@ -224,7 +232,9 @@ class ApiClient {
   }
 
   setBaseUrl(url: string) {
-    this.baseUrl = url;
+    // Remove trailing slash to avoid double slashes in URLs
+    this.baseUrl = url.replace(/\/$/, '');
+    console.log("🔧 API baseUrl atualizado para:", this.baseUrl);
   }
 }
 

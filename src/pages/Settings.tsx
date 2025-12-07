@@ -34,12 +34,14 @@ const Settings = () => {
   // Update API base URL when endpoint changes
   useEffect(() => {
     if (apiEndpoint) {
+      console.log("🔧 Atualizando API base URL para:", apiEndpoint);
       api.setBaseUrl(apiEndpoint);
     }
   }, [apiEndpoint]);
 
   // Load configuration on mount
   useEffect(() => {
+    console.log("📋 Carregando configuração, endpoint:", apiEndpoint);
     loadConfiguration();
     testConnection();
   }, [apiEndpoint]);
@@ -88,20 +90,33 @@ const Settings = () => {
     
     try {
       // Update API base URL
-      api.setBaseUrl(apiEndpoint);
+      const currentEndpoint = apiEndpoint || getDefaultApiUrl();
+      api.setBaseUrl(currentEndpoint);
+      
+      console.log("🧪 Testando conexão com:", currentEndpoint);
       
       // Test health endpoint
       const response = await api.health();
       setHealthData(response);
+      
+      console.log("✅ Resposta do health:", response);
       
       if (response.status === "ok" && response.ga4 === "connected") {
         setConnectionStatus("connected");
       } else {
         setConnectionStatus("disconnected");
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("❌ Erro ao testar conexão:", error);
       setConnectionStatus("disconnected");
       setHealthData(null);
+      
+      // Show helpful error message
+      if (error?.status === 404 || error?.message?.includes("404")) {
+        toast.error("Backend não encontrado. Verifique se o serviço está online ou se a URL está correta.");
+      } else if (error?.name === "AbortError") {
+        toast.error("Timeout: O backend pode estar suspenso (plano gratuito). Aguarde 1-2 minutos.");
+      }
     }
   };
 
@@ -118,7 +133,11 @@ const Settings = () => {
 
     setIsSavingConfig(true);
     try {
-      api.setBaseUrl(apiEndpoint);
+      // Ensure API base URL is set correctly
+      const currentEndpoint = apiEndpoint || getDefaultApiUrl();
+      api.setBaseUrl(currentEndpoint);
+      
+      console.log("🔗 Salvando configuração para:", currentEndpoint);
       
       // Validate JSON
       let credentialsObj;
@@ -130,8 +149,10 @@ const Settings = () => {
         return;
       }
 
-      await api.saveConfig(propertyId.trim(), credentialsObj);
+      // Make sure we're using the correct endpoint
+      const response = await api.saveConfig(propertyId.trim(), credentialsObj);
       
+      console.log("✅ Configuração salva:", response);
       toast.success("Configuração do GA4 salva com sucesso!");
       
       // Reload config to update UI
@@ -142,9 +163,18 @@ const Settings = () => {
         testConnection();
       }, 1000);
       
-    } catch (error) {
+    } catch (error: any) {
+      console.error("❌ Erro ao salvar configuração:", error);
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      toast.error(`Erro ao salvar configuração: ${errorMessage}`);
+      const status = error?.status || error?.response?.status;
+      
+      if (status === 404) {
+        toast.error(`Erro 404: Endpoint não encontrado. Verifique se a URL do backend está correta: ${apiEndpoint || getDefaultApiUrl()}`);
+      } else if (status === 400) {
+        toast.error("Erro 400: Dados inválidos. Verifique o Property ID e o JSON do Service Account.");
+      } else {
+        toast.error(`Erro ao salvar configuração: ${errorMessage}`);
+      }
     } finally {
       setIsSavingConfig(false);
     }
