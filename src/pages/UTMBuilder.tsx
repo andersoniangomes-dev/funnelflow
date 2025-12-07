@@ -131,6 +131,7 @@ const UTMBuilder = () => {
   const [shortUrl, setShortUrl] = useState<string | null>(null);
   const [isShortening, setIsShortening] = useState(false);
   const [copiedShort, setCopiedShort] = useState(false);
+  const [customShortCode, setCustomShortCode] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [savedUTMs, setSavedUTMs] = useState<any[]>([]);
   const [utmName, setUtmName] = useState("");
@@ -362,6 +363,16 @@ const UTMBuilder = () => {
       return;
     }
 
+    // Validate custom code if provided
+    if (customShortCode.trim()) {
+      const code = customShortCode.trim().toLowerCase();
+      // Only alphanumeric, hyphens, and underscores, 3-20 characters
+      if (!/^[a-z0-9_-]{3,20}$/.test(code)) {
+        toast.error("Código personalizado inválido. Use apenas letras, números, hífens e underscores (3-20 caracteres)");
+        return;
+      }
+    }
+
     setIsShortening(true);
     try {
       const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
@@ -371,25 +382,25 @@ const UTMBuilder = () => {
       const utmId = Date.now().toString(); // Temporary ID for preview
       const trackingUrl = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
       
-      console.log("🔗 Tentando encurtar URL:", trackingUrl);
-      console.log("🌐 API Endpoint:", apiEndpoint);
-      console.log("📡 URL completa da requisição:", `${apiEndpoint}/s/shorten`);
+      console.log("🔗 Tentando encurtar URL:", trackingUrl, customShortCode.trim() ? `com código: ${customShortCode.trim()}` : "");
       
-      // Shorten the tracking URL
-      const response = await api.shortenUrl(trackingUrl);
+      // Shorten the tracking URL with optional custom code
+      const response = await api.shortenUrl(trackingUrl, customShortCode.trim() || undefined);
       
       console.log("✅ Resposta recebida:", response);
       setShortUrl(response.shortUrl);
       toast.success("URL encurtada com sucesso!");
-    } catch (error) {
+      setCustomShortCode(""); // Clear custom code after success
+    } catch (error: any) {
       console.error("❌ Erro ao encurtar URL:", error);
-      console.error("❌ Detalhes do erro:", {
-        message: error instanceof Error ? error.message : "Erro desconhecido",
-        status: (error as any)?.status,
-        response: (error as any)?.response
-      });
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      toast.error(`Erro ao encurtar URL: ${errorMessage}`);
+      const errorMessage = error?.message || "Erro desconhecido";
+      const status = error?.status || error?.response?.status;
+      
+      if (status === 409) {
+        toast.error("Código personalizado já existe. Escolha outro.");
+      } else {
+        toast.error(`Erro ao encurtar URL: ${errorMessage}`);
+      }
     } finally {
       setIsShortening(false);
     }
@@ -536,8 +547,9 @@ const UTMBuilder = () => {
           
           // NOW create the short URL with the correct tracking URL
           try {
-            console.log("🔗 Criando link encurtado para:", trackingUrlForNewUTM);
-            const shortenResponse = await api.shortenUrl(trackingUrlForNewUTM);
+            const customCode = customShortCode.trim() || undefined;
+            console.log("🔗 Criando link encurtado para:", trackingUrlForNewUTM, customCode ? `com código: ${customCode}` : "");
+            const shortenResponse = await api.shortenUrl(trackingUrlForNewUTM, customCode);
             shortUrlForUTM = shortenResponse.shortUrl;
             console.log("✅ Link encurtado criado:", shortUrlForUTM);
             
@@ -619,6 +631,7 @@ const UTMBuilder = () => {
       setContent("");
       setTerm("");
       setShortUrl(null); // Reset short URL
+      setCustomShortCode(""); // Reset custom code
     }
     
     // Reload stats after saving
@@ -867,30 +880,55 @@ const UTMBuilder = () => {
                         })()}
                       </code>
                     </div>
-                    <div className="flex gap-2 mt-2">
+                    <div className="mt-2 space-y-2">
+                      {/* Custom Short Code Input */}
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">
+                          Código Personalizado (Opcional)
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            placeholder="ex: minha-campanha"
+                            value={customShortCode}
+                            onChange={(e) => {
+                              const value = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                              if (value.length <= 20) {
+                                setCustomShortCode(value);
+                              }
+                            }}
+                            className="flex-1 text-sm"
+                            maxLength={20}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleShortenUrl}
+                            disabled={!isValid || isShortening}
+                            className="gap-2"
+                          >
+                            {isShortening ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Link2 className="h-4 w-4" />
+                            )}
+                            Encurtar
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Deixe vazio para gerar automaticamente. Use apenas letras, números, hífens e underscores (3-20 caracteres).
+                        </p>
+                      </div>
+                      
                       <Button
                         variant="gradient"
                         size="sm"
                         onClick={handleCopyTracking}
                         disabled={!isValid}
-                        className="gap-2 flex-1"
+                        className="gap-2 w-full"
                       >
                         {copiedTracking ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        {copiedTracking ? "Copiado!" : "Copiar Tracking"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleShortenUrl}
-                        disabled={!isValid || isShortening}
-                        className="gap-2"
-                      >
-                        {isShortening ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Link2 className="h-4 w-4" />
-                        )}
-                        Encurtar
+                        {copiedTracking ? "Copiado!" : "Copiar URL de Tracking"}
                       </Button>
                     </div>
                     
