@@ -134,6 +134,7 @@ router.get('/sources', async (req, res) => {
           },
         ],
         dimensions: [
+          { name: 'eventName' },
           { name: 'sessionSource' },
           { name: 'sessionMedium' }
         ],
@@ -152,8 +153,9 @@ router.get('/sources', async (req, res) => {
 
       // Add begin_checkout counts to conversions
       beginCheckoutResponse.rows?.forEach(row => {
-        const source = row.dimensionValues[0]?.value || 'unknown';
-        const medium = row.dimensionValues[1]?.value || 'unknown';
+        // eventName is first dimension, then sessionSource, then sessionMedium
+        const source = row.dimensionValues[1]?.value || 'unknown';
+        const medium = row.dimensionValues[2]?.value || 'unknown';
         const beginCheckoutCount = parseInt(row.metricValues[0]?.value || '0');
         
         const key = `${source}_${medium}`;
@@ -234,7 +236,7 @@ router.get('/campaigns', async (req, res) => {
     const campaigns = (response.rows || []).map(row => {
       const name = row.dimensionValues[0]?.value || 'unknown';
       const sessions = parseInt(row.metricValues[0]?.value || '0');
-      const conversions = parseInt(row.metricValues[1]?.value || '0');
+      let conversions = parseInt(row.metricValues[1]?.value || '0');
       const revenue = parseFloat(row.metricValues[2]?.value || '0');
       const conversionRate = sessions > 0
         ? ((conversions / sessions) * 100).toFixed(2)
@@ -248,6 +250,57 @@ router.get('/campaigns', async (req, res) => {
         revenue: revenue
       };
     });
+
+    // Add begin_checkout events to conversions for campaigns
+    try {
+      const [beginCheckoutResponse] = await analyticsDataClient.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [
+          {
+            startDate: startDate,
+            endDate: endDate,
+          },
+        ],
+        dimensions: [
+          { name: 'eventName' },
+          { name: 'sessionCampaignName' }
+        ],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'eventName',
+            stringFilter: {
+              matchType: 'EXACT',
+              value: 'begin_checkout',
+            },
+          },
+        },
+        limit: 20,
+      });
+
+      // Create a map for quick lookup
+      const campaignMap = new Map(campaigns.map(c => [c.name, c]));
+
+      // Add begin_checkout counts to conversions
+      beginCheckoutResponse.rows?.forEach(row => {
+        // eventName is first dimension, then sessionCampaignName
+        const campaignName = row.dimensionValues[1]?.value || 'unknown';
+        const beginCheckoutCount = parseInt(row.metricValues[0]?.value || '0');
+        
+        const campaign = campaignMap.get(campaignName);
+        if (campaign) {
+          campaign.conversions += beginCheckoutCount;
+          campaign.conversionRate = campaign.sessions > 0
+            ? ((campaign.conversions / campaign.sessions) * 100).toFixed(2)
+            : '0.00';
+          campaign.conversionRate = `${campaign.conversionRate}%`;
+        }
+      });
+
+      console.log(`✅ Adicionados eventos begin_checkout às conversões por campanha`);
+    } catch (error) {
+      console.warn('⚠️ Erro ao buscar eventos begin_checkout por campanha:', error.message);
+    }
 
     res.json({
       campaigns,
