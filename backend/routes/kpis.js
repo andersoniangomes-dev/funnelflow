@@ -237,8 +237,8 @@ router.get('/sessions-over-time', async (req, res) => {
       });
     }
 
-    // Fetch sessions and conversions by date
-    const [response] = await analyticsDataClient.runReport({
+    // First, fetch sessions by date
+    const [sessionsResponse] = await analyticsDataClient.runReport({
       property: `properties/${propertyId}`,
       dateRanges: [
         {
@@ -247,10 +247,7 @@ router.get('/sessions-over-time', async (req, res) => {
         },
       ],
       dimensions: [{ name: 'date' }],
-      metrics: [
-        { name: 'sessions' },
-        { name: 'conversions' },
-      ],
+      metrics: [{ name: 'sessions' }],
       orderBys: [
         {
           dimension: { dimensionName: 'date' },
@@ -258,7 +255,10 @@ router.get('/sessions-over-time', async (req, res) => {
       ],
     });
 
-    const data = (response.rows || []).map(row => {
+    // Create a map with sessions data
+    const dataMap = new Map();
+    
+    (sessionsResponse.rows || []).forEach(row => {
       const dateStr = row.dimensionValues[0]?.value || '';
       // Format date: YYYYMMDD -> DD/MM
       const formattedDate = dateStr.length === 8 
@@ -266,16 +266,15 @@ router.get('/sessions-over-time', async (req, res) => {
         : dateStr;
       
       const sessions = parseInt(row.metricValues[0]?.value || '0');
-      let conversions = parseInt(row.metricValues[1]?.value || '0');
 
-      return {
+      dataMap.set(formattedDate, {
         date: formattedDate,
         sessoes: sessions,
-        conversoes: conversions
-      };
+        conversoes: 0 // Will be filled with begin_checkout
+      });
     });
 
-    // Add begin_checkout events to conversions by date
+    // Fetch begin_checkout events by date (this is our conversion event)
     try {
       const [beginCheckoutResponse] = await analyticsDataClient.runReport({
         property: `properties/${propertyId}`,
@@ -301,10 +300,7 @@ router.get('/sessions-over-time', async (req, res) => {
         },
       });
 
-      // Create a map for quick lookup
-      const dataMap = new Map(data.map(d => [d.date, d]));
-
-      // Add begin_checkout counts to conversions
+      // Add begin_checkout counts as conversions
       beginCheckoutResponse.rows?.forEach(row => {
         const dateStr = row.dimensionValues[1]?.value || '';
         const formattedDate = dateStr.length === 8 
@@ -312,16 +308,34 @@ router.get('/sessions-over-time', async (req, res) => {
           : dateStr;
         const beginCheckoutCount = parseInt(row.metricValues[0]?.value || '0');
         
-        const dayData = dataMap.get(formattedDate);
-        if (dayData) {
-          dayData.conversoes += beginCheckoutCount;
+        // Get or create entry for this date
+        let dayData = dataMap.get(formattedDate);
+        if (!dayData) {
+          // Create entry if it doesn't exist (in case there are begin_checkout events but no sessions)
+          dayData = {
+            date: formattedDate,
+            sessoes: 0,
+            conversoes: 0
+          };
+          dataMap.set(formattedDate, dayData);
         }
+        
+        dayData.conversoes = beginCheckoutCount; // Use begin_checkout as conversions
       });
 
-      console.log(`✅ Adicionados eventos begin_checkout às conversões por data`);
+      console.log(`✅ Adicionados ${beginCheckoutResponse.rows?.length || 0} eventos begin_checkout como conversões por data`);
     } catch (error) {
       console.warn('⚠️ Erro ao buscar eventos begin_checkout por data:', error.message);
     }
+
+    // Convert map to array and sort by date
+    const data = Array.from(dataMap.values()).sort((a, b) => {
+      // Sort by date (DD/MM format)
+      const [dayA, monthA] = a.date.split('/').map(Number);
+      const [dayB, monthB] = b.date.split('/').map(Number);
+      if (monthA !== monthB) return monthA - monthB;
+      return dayA - dayB;
+    });
 
     res.json({
       data: data,
