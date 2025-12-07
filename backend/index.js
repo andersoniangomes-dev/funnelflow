@@ -17,11 +17,14 @@ import { initializeDatabase } from './lib/db.js';
 // Load environment variables
 dotenv.config();
 
-// Clean up GOOGLE_APPLICATION_CREDENTIALS if it contains JSON object (invalid)
+// CRITICAL: Clean up GOOGLE_APPLICATION_CREDENTIALS if it contains JSON object (invalid)
+// This can happen if Render or other services set it incorrectly
 if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (typeof credsPath === 'string' && credsPath.trim().startsWith('{')) {
-    console.warn('⚠️ GOOGLE_APPLICATION_CREDENTIALS contains JSON object, clearing it');
+  // Check if it's a JSON object (starts with {) or too long (likely JSON)
+  if (typeof credsPath === 'string' && (credsPath.trim().startsWith('{') || credsPath.length > 500)) {
+    console.warn('⚠️ GOOGLE_APPLICATION_CREDENTIALS contains JSON object or invalid value, clearing it');
+    console.warn('⚠️ Value preview:', credsPath.substring(0, 100));
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
   }
 }

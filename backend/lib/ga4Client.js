@@ -49,10 +49,9 @@ export async function getAnalyticsClient() {
         console.log('✅ GOOGLE_APPLICATION_CREDENTIALS value type:', typeof process.env.GOOGLE_APPLICATION_CREDENTIALS);
         console.log('✅ GOOGLE_APPLICATION_CREDENTIALS starts with {?', process.env.GOOGLE_APPLICATION_CREDENTIALS?.startsWith('{'));
         
-        // Create client with explicit options to avoid reading from env var incorrectly
-        const client = new BetaAnalyticsDataClient({
-          keyFilename: tmpCredentialsFile
-        });
+        // Create client - it will read from GOOGLE_APPLICATION_CREDENTIALS env var
+        // which we just set to the temp file path
+        const client = new BetaAnalyticsDataClient();
         console.log('✅ GA4 client initialized successfully');
         
         // Don't restore - keep the temp file path
