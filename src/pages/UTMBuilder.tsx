@@ -26,6 +26,15 @@ const presetTemplates = [
 const sourceOptions = ["instagram", "tiktok", "google", "facebook", "linkedin", "twitter", "email"];
 const mediumOptions = ["cpc", "bio", "story", "feed", "video", "email", "organic", "referral"];
 
+// Get default API URL from environment or use Render URL
+const getDefaultApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    return envUrl.replace(/\/$/, ''); // Remove trailing slash
+  }
+  return 'https://funnelflow-backend.onrender.com';
+};
+
 // Load saved UTMs from localStorage
 const loadSavedUTMs = () => {
   try {
@@ -72,7 +81,7 @@ const UTMBuilder = () => {
     if (savedUTMs && savedUTMs.length > 0) {
       const updatedUTMs = savedUTMs.map((utm: any) => {
         if (!utm.trackingUrl && utm.url) {
-          const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+          const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
           return {
             ...utm,
             trackingUrl: `${apiEndpoint}/utm/track/${utm.id}?url=${encodeURIComponent(utm.url)}`
@@ -100,7 +109,7 @@ const UTMBuilder = () => {
   const loadStats = async () => {
     setIsLoadingStats(true);
     try {
-      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+      const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
       api.setBaseUrl(apiEndpoint);
       
       const statsResponse = await api.getUTMStats();
@@ -190,7 +199,7 @@ const UTMBuilder = () => {
   const handleCopyTracking = () => {
     if (!generatedUrl) return;
     const utmId = Date.now().toString(); // Temporary ID for preview
-    const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+    const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
     const trackingUrl = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
     navigator.clipboard.writeText(trackingUrl);
     setCopiedTracking(true);
@@ -206,7 +215,7 @@ const UTMBuilder = () => {
 
     setIsShortening(true);
     try {
-      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+      const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
       api.setBaseUrl(apiEndpoint);
       
       // Get tracking URL first
@@ -344,7 +353,7 @@ const UTMBuilder = () => {
     } else {
       // Create new UTM
     const utmId = Date.now();
-    const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+    const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
     const trackingUrlForNewUTM = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
     
     // Try to shorten the tracking URL
@@ -617,7 +626,7 @@ const UTMBuilder = () => {
                       <code className="text-sm text-foreground break-all">
                         {(() => {
                           const utmId = Date.now().toString();
-                          const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
+                          const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
                           return `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
                         })()}
                       </code>
