@@ -231,15 +231,15 @@ const Settings = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-3xl">
+      <div className="space-y-4 sm:space-y-6 max-w-3xl">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Configurações</h1>
           <p className="text-muted-foreground mt-1">Configure sua integração de analytics e preferências</p>
         </div>
 
         {/* System Status */}
-        <div className="glass-card p-6 animate-fade-in">
+        <div className="glass-card p-4 sm:p-6 animate-fade-in">
           <h3 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
             <Info className="h-5 w-5" />
             Status do Sistema
@@ -312,7 +312,7 @@ const Settings = () => {
         </div>
 
         {/* API Endpoint Configuration */}
-        <div className="glass-card p-6 animate-fade-in">
+        <div className="glass-card p-4 sm:p-6 animate-fade-in">
           <h3 className="text-lg font-semibold text-foreground mb-6">Configuração da API</h3>
           
           <div className="space-y-4">
@@ -346,7 +346,7 @@ const Settings = () => {
         </div>
 
         {/* GA4 Configuration */}
-        <div className="glass-card p-6 animate-fade-in">
+        <div className="glass-card p-4 sm:p-6 animate-fade-in">
           <h3 className="text-lg font-semibold text-foreground mb-6">Configuração do GA4</h3>
           
           <div className="space-y-6">
@@ -444,7 +444,7 @@ const Settings = () => {
         </div>
 
         {/* Data Management */}
-        <div className="glass-card p-6 animate-fade-in">
+        <div className="glass-card p-4 sm:p-6 animate-fade-in">
           <h3 className="text-lg font-semibold text-foreground mb-6">Gerenciamento de Dados</h3>
           
           <div className="space-y-4">

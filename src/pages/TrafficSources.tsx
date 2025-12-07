@@ -99,12 +99,12 @@ const TrafficSources = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Fontes de Tráfego</h1>
-            <p className="text-muted-foreground mt-1">Analise sua aquisição de tráfego e desempenho de campanhas</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Fontes de Tráfego</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">Analise sua aquisição de tráfego e desempenho de campanhas</p>
           </div>
           <DateRangePicker 
             onDateChange={(start, end) => {
@@ -116,8 +116,8 @@ const TrafficSources = () => {
         </div>
 
         {/* Source Performance Chart */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="glass-card p-6 animate-fade-in">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="glass-card p-4 sm:p-6 animate-fade-in">
             <h3 className="text-lg font-semibold text-foreground mb-6">Sessões por Fonte</h3>
             {isLoading ? (
               <div className="h-[300px] flex items-center justify-center">
