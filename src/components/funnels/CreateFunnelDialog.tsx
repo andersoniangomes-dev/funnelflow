@@ -184,8 +184,9 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
     }
 
     try {
-      const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
-      api.setBaseUrl(apiEndpoint);
+      // Ensure API base URL is set correctly
+      const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
+      api.setBaseUrl(apiEndpoint.replace(/\/$/, ''));
 
       const steps = selectedSteps.map(s => s.eventName);
       
@@ -200,7 +201,9 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
       } catch (dbError) {
         // Fallback to localStorage
         console.warn("Erro ao salvar no banco, usando localStorage:", dbError);
-        const savedFunnels = loadSavedFunnels();
+        const savedFunnels = await loadSavedFunnels();
+        // Ensure it's an array
+        const funnelsArray = Array.isArray(savedFunnels) ? savedFunnels : [];
         const newFunnel = {
           id: Date.now(),
           name: funnelName.trim(),
@@ -208,8 +211,8 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
           createdAt: new Date().toISOString(),
           isDefault: false
         };
-        savedFunnels.push(newFunnel);
-        saveFunnels(savedFunnels);
+        funnelsArray.push(newFunnel);
+        await saveFunnels(funnelsArray);
         toast.success("Funil criado com sucesso (salvo localmente)!");
       }
 
@@ -378,18 +381,21 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
 // Helper functions with database support
 export async function loadSavedFunnels() {
   try {
-    const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
-    api.setBaseUrl(apiEndpoint);
+    // Ensure API base URL is set correctly
+    const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
+    api.setBaseUrl(apiEndpoint.replace(/\/$/, ''));
     
     try {
       const response = await api.getSavedFunnels();
-      return response.funnels || [];
+      // Ensure we return an array
+      return Array.isArray(response.funnels) ? response.funnels : [];
     } catch (dbError) {
       // Fallback to localStorage
       console.warn("Erro ao carregar do banco, usando localStorage:", dbError);
       try {
         const saved = localStorage.getItem("saved_funnels");
-        return saved ? JSON.parse(saved) : [];
+        const parsed = saved ? JSON.parse(saved) : [];
+        return Array.isArray(parsed) ? parsed : [];
       } catch {
         return [];
       }
@@ -398,7 +404,8 @@ export async function loadSavedFunnels() {
     console.error("Erro ao carregar funis:", error);
     try {
       const saved = localStorage.getItem("saved_funnels");
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -407,8 +414,9 @@ export async function loadSavedFunnels() {
 
 export async function saveFunnels(funnels: any[]) {
   try {
-    const apiEndpoint = localStorage.getItem("api_endpoint") || "http://localhost:3000";
-    api.setBaseUrl(apiEndpoint);
+    // Ensure API base URL is set correctly
+    const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
+    api.setBaseUrl(apiEndpoint.replace(/\/$/, ''));
 
     // Try to save each funnel to database
     for (const funnel of funnels) {
