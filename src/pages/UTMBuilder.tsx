@@ -147,23 +147,36 @@ const UTMBuilder = () => {
       const utms = await loadSavedUTMs();
       console.log("✅ UTMs carregados:", utms.length, utms);
       
+      if (utms.length === 0) {
+        console.log("⚠️ Nenhum UTM encontrado. Se você tinha UTMs antes, eles podem estar no localStorage com IDs antigos.");
+        setSavedUTMs([]);
+        return;
+      }
+      
       // Update old UTMs that don't have trackingUrl or have localhost URLs
       const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
       const updatedUTMs = utms.map((utm: any) => {
+        // Ensure ID is a number
+        const utmId = typeof utm.id === 'string' ? parseInt(utm.id) : (typeof utm.id === 'number' ? utm.id : parseInt(String(utm.id)));
+        
         // Update if no trackingUrl or if it contains localhost
         if (!utm.trackingUrl || (utm.trackingUrl && utm.trackingUrl.includes('localhost'))) {
           if (utm.url) {
             return {
               ...utm,
-              trackingUrl: `${apiEndpoint}/utm/track/${utm.id}?url=${encodeURIComponent(utm.url)}`
+              id: utmId,
+              trackingUrl: `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(utm.url)}`
             };
           }
         }
-        return utm;
+        return {
+          ...utm,
+          id: utmId
+        };
       });
       
       const hasChanges = updatedUTMs.some((utm: any, index: number) => 
-        utm.trackingUrl !== utms[index]?.trackingUrl
+        utm.trackingUrl !== utms[index]?.trackingUrl || utm.id !== utms[index]?.id
       );
       
       if (hasChanges) {
@@ -222,10 +235,14 @@ const UTMBuilder = () => {
       }
       
       // Log saved UTMs for debugging
-      console.log("📋 UTMs salvos:", savedUTMs.length, savedUTMs.map(u => ({ id: String(u.id), name: u.name })));
-      console.log("📊 Mapa de estatísticas completo:", statsMap);
+      console.log("📋 UTMs salvos:", savedUTMs.length, savedUTMs.map(u => ({ 
+        id: u.id, 
+        idString: String(u.id), 
+        name: u.name 
+      })));
+      console.log("📊 Mapa de estatísticas completo:", Object.keys(statsMap).map(k => ({ utmId: k, stats: statsMap[k] })));
       
-      // Check for UTMs without stats
+      // Check for UTMs without stats and stats without UTMs
       if (savedUTMs.length > 0) {
         savedUTMs.forEach((utm: any) => {
           const utmIdKey = String(utm.id);
@@ -235,8 +252,21 @@ const UTMBuilder = () => {
             console.log(`✅ UTM ${utmIdKey} (${utm.name}) tem ${statsMap[utmIdKey].totalClicks} cliques`);
           }
         });
+        
+        // Check for stats without corresponding UTMs
+        Object.keys(statsMap).forEach((statUtmId) => {
+          const foundUtm = savedUTMs.find((utm: any) => String(utm.id) === statUtmId);
+          if (!foundUtm) {
+            console.log(`⚠️ Estatísticas encontradas para UTM ${statUtmId}, mas UTM não está salvo. Pode ser um UTM antigo.`);
+          }
+        });
       } else {
         console.log("⚠️ Nenhum UTM salvo encontrado para corresponder com estatísticas");
+        console.log("💡 Se você tinha UTMs antes, eles podem precisar ser recriados ou migrados.");
+        // Show stats that exist but have no corresponding UTM
+        if (Object.keys(statsMap).length > 0) {
+          console.log("📊 Estatísticas encontradas para UTMs não salvos:", Object.keys(statsMap));
+        }
       }
       
       setUtmStats(statsMap);
