@@ -165,7 +165,16 @@ class ApiClient {
   }
 
   getTrackingUrl(utmId: string, originalUrl: string): string {
-    const apiEndpoint = localStorage.getItem("api_endpoint") || this.baseUrl;
+    // Get default API URL from environment or use Render URL
+    const getDefaultApiUrl = () => {
+      const envUrl = import.meta.env.VITE_API_URL;
+      if (envUrl) {
+        return envUrl.replace(/\/$/, ''); // Remove trailing slash
+      }
+      return 'https://funnelflow-backend.onrender.com';
+    };
+    
+    const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
     const encodedUrl = encodeURIComponent(originalUrl);
     return `${apiEndpoint}/utm/track/${utmId}?url=${encodedUrl}`;
   }

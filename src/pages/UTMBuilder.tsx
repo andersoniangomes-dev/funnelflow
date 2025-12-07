@@ -77,15 +77,18 @@ const UTMBuilder = () => {
 
   // Load stats on mount and periodically
   useEffect(() => {
-    // Update old UTMs that don't have trackingUrl (only on mount)
+    // Update old UTMs that don't have trackingUrl or have localhost URLs (only on mount)
     if (savedUTMs && savedUTMs.length > 0) {
+      const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
       const updatedUTMs = savedUTMs.map((utm: any) => {
-        if (!utm.trackingUrl && utm.url) {
-          const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
-          return {
-            ...utm,
-            trackingUrl: `${apiEndpoint}/utm/track/${utm.id}?url=${encodeURIComponent(utm.url)}`
-          };
+        // Update if no trackingUrl or if it contains localhost
+        if (!utm.trackingUrl || (utm.trackingUrl && utm.trackingUrl.includes('localhost'))) {
+          if (utm.url) {
+            return {
+              ...utm,
+              trackingUrl: `${apiEndpoint}/utm/track/${utm.id}?url=${encodeURIComponent(utm.url)}`
+            };
+          }
         }
         return utm;
       });
@@ -95,6 +98,7 @@ const UTMBuilder = () => {
       );
       
       if (hasChanges) {
+        console.log("🔄 Atualizando URLs de tracking dos UTMs salvos");
         setSavedUTMs(updatedUTMs);
         saveUTMs(updatedUTMs);
       }
@@ -112,24 +116,30 @@ const UTMBuilder = () => {
       const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
       api.setBaseUrl(apiEndpoint);
       
+      console.log("📊 Carregando estatísticas de UTMs, endpoint:", apiEndpoint);
       const statsResponse = await api.getUTMStats();
+      console.log("📥 Resposta de estatísticas:", statsResponse);
+      
       const statsMap: Record<string, any> = {};
       
       if (statsResponse.stats) {
         statsResponse.stats.forEach((stat: any) => {
           // Convert utmId to string to match with saved UTMs
+          // Handle both string and number utmIds
           const utmIdKey = String(stat.utmId);
           statsMap[utmIdKey] = {
-            totalClicks: stat.totalClicks,
-            recentClicks: stat.recentClicks,
+            totalClicks: stat.totalClicks || 0,
+            recentClicks: stat.recentClicks || 0,
             lastClick: stat.lastClick
           };
+          console.log(`📈 Estatísticas para UTM ${utmIdKey}:`, statsMap[utmIdKey]);
         });
       }
       
+      console.log("📊 Mapa de estatísticas completo:", statsMap);
       setUtmStats(statsMap);
     } catch (error) {
-      console.error("Erro ao carregar estatísticas:", error);
+      console.error("❌ Erro ao carregar estatísticas:", error);
       // Não mostrar erro para não poluir a interface
     } finally {
       setIsLoadingStats(false);
@@ -930,8 +940,11 @@ const UTMBuilder = () => {
                                 onClick={() => {
                                   window.open(trackingUrl, '_blank');
                                   toast.info("Abrindo URL de tracking em nova aba para teste");
-                                  // Reload stats after 2 seconds
-                                  setTimeout(() => loadStats(), 2000);
+                                  // Reload stats after 3 seconds to allow click to be registered
+                                  setTimeout(() => {
+                                    console.log("🔄 Recarregando estatísticas após teste de clique");
+                                    loadStats();
+                                  }, 3000);
                                 }}
                                 title="Testar URL de tracking (abre em nova aba)"
                               >
