@@ -313,11 +313,39 @@ router.delete('/clicks/orphans', async (req, res) => {
       }
       
       // Delete clicks for UTMs that are not saved
-      // Use NOT IN with array
-      const result = await sql`
-        DELETE FROM utm_clicks
-        WHERE utm_id::text NOT IN (${sql(savedUtmIds)})
-      `;
+      // Use a subquery approach for better compatibility with Neon
+      let deletedCount = 0;
+      
+      if (savedUtmIds.length > 0) {
+        // Get all clicks first
+        const allClicks = await sql`
+          SELECT DISTINCT utm_id FROM utm_clicks
+        `;
+        
+        // Find orphan UTM IDs
+        const orphanIds = allClicks
+          .map(c => String(c.utm_id))
+          .filter(id => !savedUtmIds.includes(id));
+        
+        if (orphanIds.length > 0) {
+          // Delete clicks for each orphan UTM ID
+          for (const orphanId of orphanIds) {
+            const result = await sql`
+              DELETE FROM utm_clicks
+              WHERE utm_id = ${orphanId}
+            `;
+            deletedCount += result.count || 0;
+          }
+        }
+        
+        console.log(`✅ Cliques órfãos deletados: ${deletedCount}`);
+      }
+      
+      res.json({ 
+        success: true, 
+        deleted: deletedCount,
+        message: `${deletedCount} cliques de UTMs não salvos foram deletados` 
+      });
       
       console.log(`✅ Cliques órfãos deletados`);
       
