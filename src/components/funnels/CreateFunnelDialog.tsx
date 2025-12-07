@@ -46,7 +46,12 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
 
   useEffect(() => {
     if (open) {
-      loadAvailableEvents();
+      // Small delay to ensure useApi has set the base URL
+      const timer = setTimeout(() => {
+        loadAvailableEvents();
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [open]);
 
@@ -55,22 +60,39 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
     try {
       console.log("🔍 Carregando eventos para criar funil...");
       
+      // Ensure API base URL is set before making request
+      const apiEndpoint = import.meta.env.VITE_API_URL || localStorage.getItem("api_endpoint") || 'https://funnelflow-backend.onrender.com';
+      api.setBaseUrl(apiEndpoint.replace(/\/$/, ''));
+      console.log("🔧 API base URL:", apiEndpoint);
+      
       // Use same date range as Events page (30 days ago to today)
       const response = await api.getEvents("30daysAgo", "today");
       
-      console.log("📥 Resposta da API:", response);
+      console.log("📥 Resposta completa da API:", JSON.stringify(response, null, 2));
       
       // Check if response has events array
       if (response && response.events && Array.isArray(response.events)) {
         console.log(`✅ Encontrados ${response.events.length} eventos`);
+        
+        if (response.events.length === 0) {
+          console.log("ℹ️ Array de eventos está vazio");
+          setAvailableEvents([]);
+          return;
+        }
+        
         const mappedEvents = response.events.map((e: any) => ({
-          name: e.name,
-          count: e.count || 0
+          name: e.name || e.eventName || 'unknown',
+          count: e.count || e.eventCount || 0
         }));
+        
         console.log("📋 Eventos mapeados:", mappedEvents);
         setAvailableEvents(mappedEvents);
       } else {
         console.warn("⚠️ Resposta não tem eventos ou não é array:", response);
+        console.warn("⚠️ Tipo de response:", typeof response);
+        console.warn("⚠️ response.events existe?", !!response?.events);
+        console.warn("⚠️ response.events é array?", Array.isArray(response?.events));
+        
         // If no events, set empty array
         setAvailableEvents([]);
         if (response && response.error) {
@@ -89,7 +111,8 @@ export function CreateFunnelDialog({ open, onOpenChange, onFunnelCreated }: Crea
       console.error("❌ Detalhes do erro:", {
         message: error?.message,
         status: error?.status,
-        response: error?.response
+        response: error?.response,
+        stack: error?.stack
       });
       
       // Check if it's a configuration error
