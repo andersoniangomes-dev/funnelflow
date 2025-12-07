@@ -441,7 +441,7 @@ const Funnels = () => {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
                             if (confirm(`Tem certeza que deseja deletar o funil "${funnel.name}"?`)) {
                             const wasDefault = funnel.isDefault;
