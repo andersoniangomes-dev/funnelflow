@@ -606,7 +606,12 @@ const UTMBuilder = () => {
 
       const updatedUTMs = [...savedUTMs, newUTM];
       setSavedUTMs(updatedUTMs);
-      await saveUTMs(updatedUTMs);
+      
+      // Don't call saveUTMs here - the UTM was already saved to database above
+      // Just update localStorage as backup
+      localStorage.setItem("saved_utms", JSON.stringify(updatedUTMs));
+      console.log("✅ UTM salvo no localStorage como backup");
+      
       toast.success("UTM salva com sucesso!");
       setUtmName("");
       setBaseUrl("");
