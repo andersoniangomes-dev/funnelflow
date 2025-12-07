@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { SessionsChart } from "@/components/dashboard/SessionsChart";
 import { TrafficSourcesChart } from "@/components/dashboard/TrafficSourcesChart";
+import { FunnelChart } from "@/components/dashboard/FunnelChart";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
@@ -155,6 +156,11 @@ const Index = () => {
           <div>
             <TrafficSourcesChart />
           </div>
+        </div>
+
+        {/* Funnel Chart */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <FunnelChart />
         </div>
 
         {/* UTM Statistics Section */}

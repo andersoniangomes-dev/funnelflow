@@ -6,12 +6,15 @@ import {
   Link2, 
   Settings,
   TrendingUp,
-  Menu
+  Menu,
+  X
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
 
 const navigation = [
   { name: "Painel", href: "/", icon: LayoutDashboard },
@@ -26,6 +29,27 @@ export function AppSidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [propertyId, setPropertyId] = useState<string>("");
+  const [isConnected, setIsConnected] = useState(false);
+
+  useApi();
+
+  useEffect(() => {
+    fetchGA4Status();
+  }, []);
+
+  const fetchGA4Status = async () => {
+    try {
+      const config = await api.getConfig();
+      if (config && config.propertyId) {
+        setPropertyId(config.propertyId);
+        setIsConnected(config.configured || false);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar status do GA4:", error);
+      setIsConnected(false);
+    }
+  };
 
   return (
     <>
@@ -82,7 +106,7 @@ export function AppSidebar() {
             onClick={() => setMobileOpen(false)}
             className="text-muted-foreground hover:text-foreground sm:hidden"
           >
-            <Menu className="h-5 w-5" />
+            <X className="h-5 w-5" />
           </Button>
         </div>
 
@@ -115,13 +139,23 @@ export function AppSidebar() {
         {/* Footer */}
         {!collapsed && (
           <div className="p-4 border-t border-sidebar-border">
-            <div className="rounded-lg bg-gradient-to-r from-primary/10 to-purple-500/10 p-3">
-              <p className="text-xs text-muted-foreground">
-                Conectado ao GA4
+            <div className={`rounded-lg bg-gradient-to-r p-3 ${
+              isConnected 
+                ? 'from-primary/10 to-purple-500/10' 
+                : 'from-secondary/10 to-secondary/20'
+            }`}>
+              <p className={`text-xs ${isConnected ? 'text-muted-foreground' : 'text-destructive'}`}>
+                {isConnected ? 'Conectado ao GA4' : 'GA4 não configurado'}
               </p>
-              <p className="text-sm font-medium text-foreground mt-1">
-                Propriedade: 123456789
-              </p>
+              {propertyId ? (
+                <p className="text-sm font-medium text-foreground mt-1">
+                  Propriedade: {propertyId}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Configure nas Configurações
+                </p>
+              )}
             </div>
           </div>
         )}
