@@ -76,7 +76,25 @@ router.post('/', async (req, res) => {
           VALUES (${name}, ${url}, ${trackingUrl || null}, ${shortUrl || null}, ${source}, ${medium}, ${campaign}, ${content || null}, ${term || null})
           RETURNING id
         `;
-        res.json({ success: true, id: result[0].id.toString() });
+        
+        const newId = result[0].id.toString();
+        
+        // If tracking URL was not provided, generate it with the database ID
+        if (!trackingUrl) {
+          // Get API base URL from request or environment
+          const protocol = req.protocol || 'https';
+          const host = req.get('host') || process.env.RENDER_EXTERNAL_HOSTNAME || 'funnelflow-backend.onrender.com';
+          const apiBaseUrl = `${protocol}://${host}`;
+          const finalTrackingUrl = `${apiBaseUrl}/utm/track/${newId}?url=${encodeURIComponent(url)}`;
+          
+          await sql`
+            UPDATE saved_utms
+            SET tracking_url = ${finalTrackingUrl}
+            WHERE id = ${parseInt(newId)}
+          `;
+        }
+        
+        res.json({ success: true, id: newId });
       }
     } else {
       res.status(503).json({

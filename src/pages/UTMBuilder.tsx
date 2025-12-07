@@ -35,22 +35,78 @@ const getDefaultApiUrl = () => {
   return 'https://funnelflow-backend.onrender.com';
 };
 
-// Load saved UTMs from localStorage
-const loadSavedUTMs = () => {
+// Load saved UTMs - try database first, then localStorage
+const loadSavedUTMs = async () => {
   try {
+    // Try to load from database first
+    const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
+    api.setBaseUrl(apiEndpoint);
+    
+    try {
+      const response = await api.getSavedUTMs();
+      if (response.utms && response.utms.length > 0) {
+        console.log("📥 UTMs carregados do banco de dados:", response.utms.length);
+        // Also save to localStorage as backup
+        localStorage.setItem("saved_utms", JSON.stringify(response.utms));
+        return response.utms;
+      }
+    } catch (dbError) {
+      console.warn("⚠️ Erro ao carregar UTMs do banco, usando localStorage:", dbError);
+    }
+    
+    // Fallback to localStorage
     const saved = localStorage.getItem("saved_utms");
-    return saved ? JSON.parse(saved) : [];
-  } catch {
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      console.log("📥 UTMs carregados do localStorage:", parsed.length);
+      return parsed;
+    }
+    
+    return [];
+  } catch (error) {
+    console.error("❌ Erro ao carregar UTMs:", error);
     return [];
   }
 };
 
-// Save UTMs to localStorage
-const saveUTMs = (utms: any[]) => {
+// Save UTMs - try database first, then localStorage
+const saveUTMs = async (utms: any[]) => {
   try {
+    // Try to save to database first
+    const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
+    api.setBaseUrl(apiEndpoint);
+    
+    // Save each UTM to database
+    for (const utm of utms) {
+      try {
+        await api.saveUTM({
+          id: utm.id?.toString(),
+          name: utm.name,
+          url: utm.url,
+          trackingUrl: utm.trackingUrl,
+          shortUrl: utm.shortUrl,
+          source: utm.source,
+          medium: utm.medium,
+          campaign: utm.campaign,
+          content: utm.content,
+          term: utm.term
+        });
+      } catch (dbError) {
+        console.warn(`⚠️ Erro ao salvar UTM ${utm.id} no banco:`, dbError);
+      }
+    }
+    
+    // Also save to localStorage as backup
     localStorage.setItem("saved_utms", JSON.stringify(utms));
+    console.log("✅ UTMs salvos (banco + localStorage)");
   } catch (error) {
-    console.error("Erro ao salvar UTMs:", error);
+    console.error("❌ Erro ao salvar UTMs:", error);
+    // Fallback to localStorage only
+    try {
+      localStorage.setItem("saved_utms", JSON.stringify(utms));
+    } catch (localError) {
+      console.error("❌ Erro ao salvar no localStorage:", localError);
+    }
   }
 };
 
@@ -67,13 +123,22 @@ const UTMBuilder = () => {
   const [isShortening, setIsShortening] = useState(false);
   const [copiedShort, setCopiedShort] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [savedUTMs, setSavedUTMs] = useState(loadSavedUTMs());
+  const [savedUTMs, setSavedUTMs] = useState<any[]>([]);
   const [utmName, setUtmName] = useState("");
   const [utmStats, setUtmStats] = useState<Record<string, { totalClicks: number; recentClicks: number; lastClick: string | null }>>({});
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [editingUtmId, setEditingUtmId] = useState<number | null>(null);
 
   useApi();
+
+  // Load saved UTMs on mount
+  useEffect(() => {
+    const loadUTMs = async () => {
+      const utms = await loadSavedUTMs();
+      setSavedUTMs(utms);
+    };
+    loadUTMs();
+  }, []);
 
   // Load stats on mount and periodically
   useEffect(() => {
@@ -136,7 +201,18 @@ const UTMBuilder = () => {
         });
       }
       
+      // Log saved UTMs for debugging
+      console.log("📋 UTMs salvos:", savedUTMs.map(u => ({ id: String(u.id), name: u.name })));
       console.log("📊 Mapa de estatísticas completo:", statsMap);
+      
+      // Check for UTMs without stats
+      savedUTMs.forEach((utm: any) => {
+        const utmIdKey = String(utm.id);
+        if (!statsMap[utmIdKey]) {
+          console.log(`⚠️ UTM ${utmIdKey} (${utm.name}) não tem estatísticas ainda`);
+        }
+      });
+      
       setUtmStats(statsMap);
     } catch (error) {
       console.error("❌ Erro ao carregar estatísticas:", error);
@@ -340,7 +416,7 @@ const UTMBuilder = () => {
 
       const updatedUTMs = savedUTMs.map(utm => {
         if (utm.id === editingUtmId) {
-          return {
+          const updated = {
             ...utm,
             name: utmName,
             url: generatedUrl,
@@ -352,48 +428,75 @@ const UTMBuilder = () => {
             term: term || "",
             updatedAt: new Date().toLocaleDateString("pt-BR")
           };
+          return updated;
         }
         return utm;
       });
 
       setSavedUTMs(updatedUTMs);
-      saveUTMs(updatedUTMs);
+      await saveUTMs(updatedUTMs);
       toast.success("UTM atualizada com sucesso!");
       handleCancelEdit();
     } else {
       // Create new UTM
-    const utmId = Date.now();
-    const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
-    const trackingUrlForNewUTM = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
-    
-    // Try to shorten the tracking URL
-    let shortUrlForUTM = null;
-    try {
+      // Try to save to database first to get proper ID
+      const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
       api.setBaseUrl(apiEndpoint);
-      const shortenResponse = await api.shortenUrl(trackingUrlForNewUTM);
-      shortUrlForUTM = shortenResponse.shortUrl;
-    } catch (error) {
-      console.warn("Não foi possível encurtar URL automaticamente:", error);
-      // Continue without short URL
-    }
-    
-    const newUTM = {
-      id: utmId,
-      name: utmName,
-      url: generatedUrl,
-      trackingUrl: trackingUrlForNewUTM,
-      shortUrl: shortUrlForUTM,
-      source: source,
-      medium: medium,
-      campaign: campaign,
-      content: content || "",
-      term: term || "",
-      createdAt: new Date().toLocaleDateString("pt-BR")
-    };
+      
+      let utmId: string | number = Date.now(); // Temporary ID
+      let trackingUrlForNewUTM = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
+      
+      // Try to save to database first
+      try {
+        const dbResponse = await api.saveUTM({
+          name: utmName,
+          url: generatedUrl,
+          trackingUrl: trackingUrlForNewUTM,
+          source: source,
+          medium: medium,
+          campaign: campaign,
+          content: content || "",
+          term: term || ""
+        });
+        
+        // Use database ID if available
+        if (dbResponse.id) {
+          utmId = dbResponse.id;
+          // Update tracking URL with correct ID
+          trackingUrlForNewUTM = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
+          console.log("✅ UTM salvo no banco com ID:", utmId);
+        }
+      } catch (dbError) {
+        console.warn("⚠️ Erro ao salvar UTM no banco, usando ID temporário:", dbError);
+      }
+      
+      // Try to shorten the tracking URL
+      let shortUrlForUTM = null;
+      try {
+        const shortenResponse = await api.shortenUrl(trackingUrlForNewUTM);
+        shortUrlForUTM = shortenResponse.shortUrl;
+      } catch (error) {
+        console.warn("Não foi possível encurtar URL automaticamente:", error);
+        // Continue without short URL
+      }
+      
+      const newUTM = {
+        id: typeof utmId === 'string' ? parseInt(utmId) : utmId, // Keep as number for compatibility
+        name: utmName,
+        url: generatedUrl,
+        trackingUrl: trackingUrlForNewUTM,
+        shortUrl: shortUrlForUTM,
+        source: source,
+        medium: medium,
+        campaign: campaign,
+        content: content || "",
+        term: term || "",
+        createdAt: new Date().toLocaleDateString("pt-BR")
+      };
 
       const updatedUTMs = [...savedUTMs, newUTM];
       setSavedUTMs(updatedUTMs);
-      saveUTMs(updatedUTMs);
+      await saveUTMs(updatedUTMs);
       toast.success("UTM salva com sucesso!");
       setUtmName("");
       setBaseUrl("");
@@ -425,13 +528,23 @@ const UTMBuilder = () => {
     toast.success(useTracking ? "URL com tracking copiada!" : "URL copiada!");
   };
 
-  const handleDeleteUTM = (id: number) => {
+  const handleDeleteUTM = async (id: number) => {
     if (editingUtmId === id) {
       handleCancelEdit();
     }
+    
+    // Try to delete from database
+    try {
+      const apiEndpoint = localStorage.getItem("api_endpoint") || getDefaultApiUrl();
+      api.setBaseUrl(apiEndpoint);
+      await api.deleteUTM(String(id));
+    } catch (dbError) {
+      console.warn("⚠️ Erro ao deletar UTM do banco:", dbError);
+    }
+    
     const updatedUTMs = savedUTMs.filter(utm => utm.id !== id);
     setSavedUTMs(updatedUTMs);
-    saveUTMs(updatedUTMs);
+    await saveUTMs(updatedUTMs);
     toast.success("UTM deletada com sucesso!");
   };
 
