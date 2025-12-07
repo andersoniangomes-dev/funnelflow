@@ -446,12 +446,12 @@ const UTMBuilder = () => {
       let utmId: string | number = Date.now(); // Temporary ID
       let trackingUrlForNewUTM = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
       
-      // Try to save to database first
+      // Try to save to database first (without trackingUrl, backend will generate it)
       try {
         const dbResponse = await api.saveUTM({
           name: utmName,
           url: generatedUrl,
-          trackingUrl: trackingUrlForNewUTM,
+          // Don't send trackingUrl - backend will generate it with correct ID
           source: source,
           medium: medium,
           campaign: campaign,
@@ -462,9 +462,10 @@ const UTMBuilder = () => {
         // Use database ID if available
         if (dbResponse.id) {
           utmId = dbResponse.id;
-          // Update tracking URL with correct ID
+          // Update tracking URL with correct ID from database
           trackingUrlForNewUTM = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
           console.log("✅ UTM salvo no banco com ID:", utmId);
+          console.log("✅ Tracking URL atualizado:", trackingUrlForNewUTM);
         }
       } catch (dbError) {
         console.warn("⚠️ Erro ao salvar UTM no banco, usando ID temporário:", dbError);
