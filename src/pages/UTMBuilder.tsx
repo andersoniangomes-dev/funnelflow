@@ -512,6 +512,7 @@ const UTMBuilder = () => {
       
       // Save to database first (without trackingUrl, backend will generate it)
       try {
+        console.log("💾 Salvando UTM no banco de dados...");
         const dbResponse = await api.saveUTM({
           name: utmName,
           url: generatedUrl,
@@ -523,22 +524,26 @@ const UTMBuilder = () => {
           term: term || ""
         });
         
+        console.log("📥 Resposta do banco:", dbResponse);
+        
         // Use database ID if available
-        if (dbResponse.id) {
+        if (dbResponse && dbResponse.id) {
           utmId = typeof dbResponse.id === 'string' ? parseInt(dbResponse.id) : dbResponse.id;
           // Update tracking URL with correct ID from database
           trackingUrlForNewUTM = `${apiEndpoint}/utm/track/${utmId}?url=${encodeURIComponent(generatedUrl)}`;
-          console.log("✅ UTM salvo no banco com ID:", utmId);
+          console.log("✅ UTM salvo no banco com ID:", utmId, "(tipo:", typeof utmId, ")");
           console.log("✅ Tracking URL atualizado:", trackingUrlForNewUTM);
           
           // NOW create the short URL with the correct tracking URL
           try {
+            console.log("🔗 Criando link encurtado para:", trackingUrlForNewUTM);
             const shortenResponse = await api.shortenUrl(trackingUrlForNewUTM);
             shortUrlForUTM = shortenResponse.shortUrl;
             console.log("✅ Link encurtado criado:", shortUrlForUTM);
             
-            // Update the UTM in database with the short URL
-            await api.saveUTM({
+            // Update the UTM in database with the short URL and tracking URL
+            console.log("💾 Atualizando UTM no banco com link encurtado...");
+            const updateResponse = await api.saveUTM({
               id: utmId.toString(),
               name: utmName,
               url: generatedUrl,
@@ -550,14 +555,32 @@ const UTMBuilder = () => {
               content: content || "",
               term: term || ""
             });
-            console.log("✅ UTM atualizado com link encurtado no banco");
+            console.log("✅ UTM atualizado no banco:", updateResponse);
           } catch (shortenError) {
-            console.warn("⚠️ Não foi possível encurtar URL automaticamente:", shortenError);
-            // Continue without short URL
+            console.error("❌ Erro ao criar/encurtar URL:", shortenError);
+            // Continue without short URL, but still update tracking URL
+            try {
+              await api.saveUTM({
+                id: utmId.toString(),
+                name: utmName,
+                url: generatedUrl,
+                trackingUrl: trackingUrlForNewUTM,
+                source: source,
+                medium: medium,
+                campaign: campaign,
+                content: content || "",
+                term: term || ""
+              });
+              console.log("✅ UTM atualizado com tracking URL (sem link encurtado)");
+            } catch (updateError) {
+              console.error("❌ Erro ao atualizar UTM:", updateError);
+            }
           }
+        } else {
+          console.warn("⚠️ Resposta do banco não contém ID:", dbResponse);
         }
       } catch (dbError) {
-        console.warn("⚠️ Erro ao salvar UTM no banco, usando ID temporário:", dbError);
+        console.error("❌ Erro ao salvar UTM no banco:", dbError);
         // Fallback: try to shorten with temporary ID (not ideal, but better than nothing)
         try {
           const shortenResponse = await api.shortenUrl(trackingUrlForNewUTM);
