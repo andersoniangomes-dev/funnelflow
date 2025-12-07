@@ -262,6 +262,15 @@ class ApiClient {
     });
   }
 
+  async deleteUTMClicks(utmId: string) {
+    return this.request<{ success: boolean; deleted: number; message: string }>(
+      `/utm/clicks/${utmId}`,
+      {
+        method: 'DELETE'
+      }
+    );
+  }
+
   setBaseUrl(url: string) {
     // Remove trailing slash to avoid double slashes in URLs
     this.baseUrl = url.replace(/\/$/, '');

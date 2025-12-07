@@ -326,6 +326,56 @@ router.delete('/clicks/orphans', async (req, res) => {
   }
 });
 
+// Delete clicks for a specific UTM
+router.delete('/clicks/:utmId', async (req, res) => {
+  try {
+    const { utmId } = req.params;
+
+    if (isDatabaseAvailable()) {
+      const normalizedUtmId = String(utmId);
+      
+      // Get count before deletion
+      const beforeCountResult = await sql`
+        SELECT COUNT(*) as count FROM utm_clicks
+        WHERE utm_id = ${normalizedUtmId}
+      `;
+      const beforeCount = parseInt(beforeCountResult[0]?.count || 0);
+      
+      // Delete all clicks for this UTM
+      await sql`
+        DELETE FROM utm_clicks
+        WHERE utm_id = ${normalizedUtmId}
+      `;
+      
+      console.log(`✅ ${beforeCount} cliques deletados para UTM ${normalizedUtmId}`);
+      
+      res.json({ 
+        success: true, 
+        deleted: beforeCount,
+        message: `${beforeCount} cliques deletados para esta UTM` 
+      });
+    } else {
+      // Fallback to JSON
+      const clicks = await loadClicks();
+      const deletedCount = clicks[utmId]?.totalClicks || 0;
+      delete clicks[utmId];
+      await saveClicks(clicks);
+      
+      res.json({ 
+        success: true, 
+        deleted: deletedCount,
+        message: `${deletedCount} cliques deletados para esta UTM` 
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting UTM clicks:', error);
+    res.status(500).json({
+      error: 'Failed to delete UTM clicks',
+      message: error.message
+    });
+  }
+});
+
 // Get stats for specific UTM
 router.get('/stats/:utmId', async (req, res) => {
   try {

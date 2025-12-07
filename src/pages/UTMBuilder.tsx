@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Check, Plus, Search, Trash2, BarChart3, Eye, TrendingUp, Pencil, X, Link2, Loader2 } from "lucide-react";
+import { Copy, Check, Plus, Search, Trash2, BarChart3, Eye, TrendingUp, Pencil, X, Link2, Loader2, RotateCcw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -1245,6 +1245,17 @@ const UTMBuilder = () => {
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
+                              {stats.totalClicks > 0 && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-warning hover:text-warning"
+                                  onClick={() => handleResetUTMClicks(utm.id)}
+                                  title="Zerar cliques desta UTM"
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
