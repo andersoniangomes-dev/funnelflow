@@ -63,11 +63,17 @@ router.get('/track/:utmId', async (req, res) => {
     // Use database if available, otherwise fallback to JSON
     if (isDatabaseAvailable()) {
       try {
+        // Normalize utmId to string for consistency
+        const normalizedUtmId = String(utmId);
+        
+        console.log(`📊 Registrando clique para UTM ID: ${normalizedUtmId} (tipo: ${typeof normalizedUtmId})`);
+        console.log(`📊 URL de destino: ${decodedUrl.substring(0, 100)}...`);
+        
         await sql`
           INSERT INTO utm_clicks (utm_id, url, ip, user_agent, referer, timestamp)
-          VALUES (${utmId}, ${decodedUrl}, ${ip}, ${userAgent}, ${referer}, CURRENT_TIMESTAMP)
+          VALUES (${normalizedUtmId}, ${decodedUrl}, ${ip}, ${userAgent}, ${referer}, CURRENT_TIMESTAMP)
         `;
-        console.log(`✅ Clique registrado no banco de dados para UTM ${utmId}`);
+        console.log(`✅ Clique registrado no banco de dados para UTM ${normalizedUtmId}`);
       } catch (dbError) {
         console.error('Erro ao salvar no banco de dados, usando fallback JSON:', dbError);
         // Fallback to JSON
@@ -141,24 +147,33 @@ router.get('/stats', async (req, res) => {
         ORDER BY timestamp DESC
       `;
 
-      // Group by utm_id
+      console.log(`📊 Total de cliques no banco: ${allClicks.length}`);
+      console.log(`📊 UTM IDs únicos encontrados:`, [...new Set(allClicks.map(c => c.utm_id))]);
+
+      // Group by utm_id (normalize to string)
       const statsMap = {};
       allClicks.forEach(click => {
-        if (!statsMap[click.utm_id]) {
-          statsMap[click.utm_id] = {
+        const normalizedId = String(click.utm_id);
+        if (!statsMap[normalizedId]) {
+          statsMap[normalizedId] = {
             totalClicks: 0,
             recentClicks: [],
             clicks: []
           };
         }
-        statsMap[click.utm_id].totalClicks++;
-        statsMap[click.utm_id].clicks.push(click);
+        statsMap[normalizedId].totalClicks++;
+        statsMap[normalizedId].clicks.push(click);
         
         const clickDate = new Date(click.timestamp);
         if (clickDate >= thirtyDaysAgo) {
-          statsMap[click.utm_id].recentClicks.push(click);
+          statsMap[normalizedId].recentClicks.push(click);
         }
       });
+
+      console.log(`📊 Stats agrupados por UTM ID:`, Object.keys(statsMap).map(id => ({
+        utmId: id,
+        totalClicks: statsMap[id].totalClicks
+      })));
 
       const stats = Object.keys(statsMap).map(utmId => {
         const data = statsMap[utmId];
@@ -264,6 +279,7 @@ router.get('/stats/:utmId', async (req, res) => {
         clicksByDate,
         clicks: clicks.map(c => ({
           timestamp: c.timestamp.toISOString(),
+          url: c.url, // Include URL so frontend can extract UTM parameters
           ip: c.ip,
           userAgent: c.user_agent,
           referer: c.referer
