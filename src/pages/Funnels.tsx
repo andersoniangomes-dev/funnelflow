@@ -204,14 +204,14 @@ const Funnels = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Funis</h1>
-            <p className="text-muted-foreground mt-1">Visualize a jornada do usuário pelo seu funil de conversão</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Funis</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">Visualize a jornada do usuário pelo seu funil de conversão</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <DateRangePicker 
               onDateChange={(start, end) => {
                 setStartDate(start);
@@ -276,7 +276,7 @@ const Funnels = () => {
         </div>
 
         {/* Funnel Visualization */}
-        <div className="glass-card p-8 animate-fade-in">
+        <div className="glass-card p-4 sm:p-6 lg:p-8 animate-fade-in">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-lg font-semibold text-foreground">
               {currentFunnelName || "Selecione um funil para visualizar"}
@@ -386,7 +386,7 @@ const Funnels = () => {
           {/* Summary */}
           {funnelSteps.length > 0 && (
           <div className="mt-8 pt-6 border-t border-border">
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
               <div className="text-center">
                 <p className="text-3xl font-bold gradient-text">{funnelSummary.totalConversionRate}</p>
                 <p className="text-sm text-muted-foreground mt-1">Taxa de Conversão Total</p>
@@ -413,7 +413,7 @@ const Funnels = () => {
               <p className="text-xs text-muted-foreground mt-2">Use o botão "Novo Funil" para criar funis personalizados</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {savedFunnels.map((funnel) => (
                 <div
                   key={funnel.id}
