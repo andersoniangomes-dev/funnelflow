@@ -274,7 +274,12 @@ const Index = () => {
             ) : (
               <div className="text-center py-8">
                 <p className="text-sm text-muted-foreground">Nenhuma conversão recente encontrada</p>
-                <p className="text-xs text-muted-foreground mt-2">Os dados aparecerão aqui quando houver conversões no período selecionado</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Os dados aparecerão aqui quando houver conversões (purchase, begin_checkout) no período selecionado
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Verifique se os eventos estão configurados corretamente no GA4
+                </p>
               </div>
             )}
           </div>
