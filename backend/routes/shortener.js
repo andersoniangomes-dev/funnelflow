@@ -316,6 +316,8 @@ router.get('/:code', async (req, res) => {
 
         // Check if original_url is a tracking URL (/utm/track/:utmId?url=...)
         const originalUrl = shortUrlData.original_url;
+        console.log(`🔍 Verificando URL original do link encurtado ${code}: ${originalUrl.substring(0, 100)}...`);
+        
         const trackingUrlMatch = originalUrl.match(/\/utm\/track\/([^?]+)\?url=(.+)/);
         
         if (trackingUrlMatch) {
@@ -326,6 +328,8 @@ router.get('/:code', async (req, res) => {
           const userAgent = req.headers['user-agent'] || 'unknown';
           const referer = req.headers['referer'] || 'unknown';
           
+          console.log(`📊 Detectado link de tracking! UTM ID: ${utmId}, URL final: ${finalUrl.substring(0, 50)}...`);
+          
           try {
             // Register click in utm_clicks table
             await sql`
@@ -334,9 +338,11 @@ router.get('/:code', async (req, res) => {
             `;
             console.log(`✅ Clique registrado no UTM ${utmId} via link encurtado ${code}`);
           } catch (trackingError) {
-            console.error('Erro ao registrar clique do link encurtado:', trackingError);
+            console.error('❌ Erro ao registrar clique do link encurtado:', trackingError);
             // Continue with redirect even if tracking fails
           }
+        } else {
+          console.log(`⚠️ Link encurtado ${code} não é uma URL de tracking. URL original: ${originalUrl.substring(0, 100)}...`);
         }
 
         // Update click count and last click for the short URL
